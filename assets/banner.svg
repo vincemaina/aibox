@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" role="img" aria-label="aibox - disposable docker containers for AI coding agents">
+  <defs>
+    <linearGradient id="aibox-gradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="200" rx="12" fill="#0f172a"/>
+  <g font-family="'SF Mono', 'JetBrains Mono', 'Menlo', 'Consolas', monospace" font-size="20" font-weight="bold" fill="url(#aibox-gradient)">
+    <text x="40" y="50" xml:space="preserve">       _ _                </text>
+    <text x="40" y="74" xml:space="preserve">  __ _(_) |__   _____  __ </text>
+    <text x="40" y="98" xml:space="preserve"> / _` | | '_ \ / _ \ \/ / </text>
+    <text x="40" y="122" xml:space="preserve">| (_| | | |_) | (_) &gt;  &lt;  </text>
+    <text x="40" y="146" xml:space="preserve"> \__,_|_|_.__/ \___/_/\_\ </text>
+  </g>
+  <text x="40" y="178" font-family="'SF Mono', 'JetBrains Mono', 'Menlo', 'Consolas', monospace" font-size="13" fill="#94a3b8">disposable docker containers for AI coding agents</text>
+</svg>

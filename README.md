@@ -1,8 +1,14 @@
-# aibox
+<p align="center">
+  <img src="assets/banner.svg" alt="aibox — disposable docker containers for AI coding agents" width="480">
+</p>
 
-[![CI](https://github.com/vincemaina/aibox/actions/workflows/ci.yml/badge.svg)](https://github.com/vincemaina/aibox/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+<p align="center">
+  <a href="https://github.com/vincemaina/aibox/actions/workflows/ci.yml"><img src="https://github.com/vincemaina/aibox/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+"></a>
+</p>
+
+# aibox
 
 `aibox` is a small Python CLI that launches a disposable Docker container from any local project directory. It is built for running Claude Code or another AI coding agent inside a sandbox where the agent can edit the current project files but cannot see your home directory, credentials, dbt profiles, Snowflake credentials, GitHub credentials, or your `.git` history.
 
@@ -15,14 +21,28 @@ The mental model:
 
 > macOS only. Windows path edge cases are explicitly out of scope.
 
+## Requirements
+
+- **macOS** (Apple Silicon or Intel)
+- **Python 3.11+**
+- **[Docker](https://www.docker.com/products/docker-desktop/) installed and running.** `aibox` shells out to the `docker` CLI; it won't start a container if Docker Desktop (or another Docker installation) isn't available. Verify with `docker version`.
+
 ## Install
+
+Make sure Docker is running first. Then install `aibox` globally with [pipx](https://pipx.pypa.io/) (recommended for CLI tools):
+
+```bash
+pipx install -e .
+```
+
+Or with regular pip:
 
 ```bash
 pip install -e .          # runtime only
 pip install -e ".[dev]"   # with pytest (for development)
 ```
 
-This exposes a global `aibox` command.
+Either way, the `aibox` command becomes globally available.
 
 ## Basic usage
 
