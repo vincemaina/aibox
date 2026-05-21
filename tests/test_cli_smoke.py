@@ -1,3 +1,8 @@
+"""Smoke tests for the argparse parser shape only.
+
+Behavioural tests for each command live in ``test_cli.py``.
+"""
+
 import pytest
 
 from aibox.cli import build_parser, main
@@ -10,17 +15,6 @@ def test_help_exits_zero_and_lists_all_commands(capsys):
     captured = capsys.readouterr()
     for command in ("run", "info", "remove-volume", "rebuild-image"):
         assert command in captured.out
-
-
-@pytest.mark.parametrize("command", ["run", "info", "remove-volume", "rebuild-image"])
-def test_each_subcommand_runs_and_returns_zero(command, capsys):
-    assert main([command]) == 0
-
-
-def test_no_args_defaults_to_run(capsys):
-    assert main([]) == 0
-    captured = capsys.readouterr()
-    assert "aibox run" in captured.err
 
 
 def test_run_accepts_all_documented_flags():

@@ -7,11 +7,11 @@ High-level plan for building the `aibox` CLI. See [`PROMPT.md`](./PROMPT.md) for
 | #  | Phase                                              | Status   | Summary                                                                 |
 |----|----------------------------------------------------|----------|-------------------------------------------------------------------------|
 | 1  | [Scaffolding](./plans/phase-1-scaffolding.md)      | Done        | `pyproject.toml`, `src/` layout, entry point, test infrastructure.   |
-| 2  | [Identity](./plans/phase-2-identity.md)            | Not started | Project ID, container name, image name, volume name derivation.      |
-| 3  | [Docker module](./plans/phase-3-docker.md)         | Not started | Image build/check, container run, volume management, Dockerfile.     |
-| 4  | [CLI commands](./plans/phase-4-cli-commands.md)    | Not started | `run`, `info`, `remove-volume`, `rebuild-image`, all flags.          |
-| 5  | [Config](./plans/phase-5-config.md)                | Not started | `.aibox.toml` parsing and CLI merge rules.                           |
-| 6  | [Polish](./plans/phase-6-polish.md)                | Not started | Error handling, README, end-to-end tests, subfolder CLAUDE.md files. |
+| 2  | [Identity](./plans/phase-2-identity.md)            | Done        | Project ID, container name, image name, volume name derivation.      |
+| 3  | [Docker module](./plans/phase-3-docker.md)         | Done        | Image build/check, container run, volume management, Dockerfile.     |
+| 4  | [CLI commands](./plans/phase-4-cli-commands.md)    | Done        | `run`, `info`, `remove-volume`, `rebuild-image`, all flags.          |
+| 5  | [Config](./plans/phase-5-config.md)                | Done        | `.aibox.toml` parsing and CLI merge rules.                           |
+| 6  | [Polish](./plans/phase-6-polish.md)                | Done        | Error handling, README, end-to-end tests, subfolder CLAUDE.md files. |
 
 ## Guiding principles
 
@@ -46,3 +46,18 @@ Project is done when the acceptance criteria in `PROMPT.md` all pass:
 5. Update the phase's status in this table to `Done` and move on.
 
 If a plan turns out to be wrong as you work, update the plan file in the same commit as the code change — the plan is a living artifact, not a museum piece.
+
+## Future work (post-MVP)
+
+Captured here so the MVP scope stays tight. Promote items to their own plan file when picked up.
+
+- **Seed `claude-best-practices.md` into target projects.** Per `CLAUDE.md`'s "aibox should deploy these practices" note. Likely an `aibox init` command that writes the file plus a starter `.aibox.toml`. Do not auto-create on `aibox run`.
+- **Custom images.** Allow `.aibox.toml` to point at a different image or a project-local Dockerfile. Keeps the default image untouched.
+- **Docker Compose support.** For projects that need sidecar services (Postgres, Redis, etc.).
+- **GitHub integration.** Opt-in, scoped read-only token mount. Not the default.
+- **Automatic port detection.** Read package.json / pyproject.toml / docker-compose.yml for likely ports.
+- **`--allow-git` flag.** Opt-in to keep `.git` visible inside the container.
+- **Windows support.** Path handling, drive letter quoting, line-ending care.
+- **Remote VM support.** Same UX but the container runs on a remote host.
+- **`--no-cache` for `rebuild-image`.** Useful when debugging the Dockerfile.
+- **End-to-end test harness.** A pytest fixture that builds the image, runs a container, asserts behaviour. Slow, opt-in via a marker.
