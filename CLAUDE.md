@@ -2,6 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Working Practices
+
+Always follow the conventions in [`claude-best-practices.md`](./claude-best-practices.md). Key practices to apply throughout this project:
+
+- **CLAUDE.md in every subfolder**: Each directory should have its own `CLAUDE.md` describing the files and subfolders within it. Add a test that enforces this.
+- **Plan before coding**: Use plan mode, and commit plan/roadmap docs to git so decisions are logged. Tightly couple roadmaps (actionable steps) to plans (full context briefs).
+- **Roadmaps**: Maintain a top-level `ROADMAP.md` that links to feature- or phase-specific roadmap files.
+- **Web research first**: Before touching unfamiliar tools/APIs/packages, do web research. Capture what you learn as a reusable skill where appropriate.
+- **Test suites enforce practices**: Tests aren't just for code — use them to enforce Claude working practices (e.g. verifying every folder has a `CLAUDE.md`).
+- **Small focused files + summaries**: Keep files small and let CLAUDE.md summaries provide orientation, so context windows stay efficient.
+- **Subagents for parallel work**: Spawn subagents (and use worktrees when not running under Docker) to keep each context window focused on one task.
+- **Definition of done**: Treat a task as done only when code compiles, tests pass, and any end-to-end check succeeds. Self-verify before reporting completion.
+
+### aibox should deploy these practices into target projects
+
+When aibox prepares a project to run an AI agent inside the container, it should consider seeding the project root with:
+
+- `claude-best-practices.md` — so any future Claude instance running in that project inherits the same working practices.
+- A starter `.aibox.toml` (only when explicitly requested via something like `aibox init` — do not create it automatically on `aibox run`).
+
+This is a non-MVP enhancement to keep in mind as the CLI evolves; the MVP should not write files into the host project automatically.
+
 ## Project Overview
 
 `aibox` is a Python CLI tool that launches disposable, isolated Docker development containers from any local project directory. The primary use case is running Claude Code (or other AI coding agents) inside a sandboxed container where it can edit project files but cannot access host credentials, Git history, or remote repositories.
@@ -119,6 +141,7 @@ Return clear, user-friendly messages for these cases.
 
 ## References
 
-- Full specification: `PROMPT.md`
+- Working practices: [`claude-best-practices.md`](./claude-best-practices.md)
+- Full specification: [`PROMPT.md`](./PROMPT.md)
 - Target base image: `python:3.12-slim`
 - Docker CLI args reference: Use standard Docker flags
