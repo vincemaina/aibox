@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from . import config, docker, identity
+from . import __version__
 from .config import ConfigError
 from .docker import DockerError, RunSpec
 
@@ -15,6 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="aibox",
         description="Run a disposable Docker container for AI coding agents.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="command")
 
     run = subparsers.add_parser("run", help="Start an interactive container for the current project")
