@@ -1,6 +1,17 @@
 # aibox
 
+[![CI](https://github.com/vincemaina/aibox/actions/workflows/ci.yml/badge.svg)](https://github.com/vincemaina/aibox/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 `aibox` is a small Python CLI that launches a disposable Docker container from any local project directory. It is built for running Claude Code or another AI coding agent inside a sandbox where the agent can edit the current project files but cannot see your home directory, credentials, dbt profiles, Snowflake credentials, GitHub credentials, or your `.git` history.
+
+The mental model:
+
+- `/workspace` inside the container is a live bind mount of your project. Edit freely.
+- `/home/dev`, `/tmp`, `/var/tmp`, `/opt` are per-project named volumes that persist across runs.
+- Everything else (your real home, ssh keys, cloud credentials, dbt profiles, `.git` history) is invisible to the container.
+- `git` and `gh` aren't installed in the image — version control stays on your host where you can review changes before committing.
 
 > macOS only. Windows path edge cases are explicitly out of scope.
 
@@ -169,4 +180,14 @@ For the MVP, aibox deliberately does not support:
 - Multi-agent orchestration
 - UI/dashboard
 
-See `ROADMAP.md` for future work and `PROMPT.md` for the full specification.
+See [`ROADMAP.md`](./ROADMAP.md) for future work and [`PROMPT.md`](./PROMPT.md) for the full specification.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for development setup, test commands, and the repo layout.
+
+For security issues, see [`SECURITY.md`](./SECURITY.md).
+
+## License
+
+[MIT](./LICENSE) © Vince Maina
