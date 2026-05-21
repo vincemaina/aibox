@@ -53,6 +53,19 @@ class TestPathHash:
     def test_is_eight_lowercase_hex_chars(self, tmp_path):
         assert re.fullmatch(r"[0-9a-f]{8}", path_hash(tmp_path))
 
+    def test_case_normalised(self, tmp_path):
+        """Hash should derive from the lowercased resolved path.
+
+        Belt-and-suspenders: ``Path.resolve()`` typically canonicalises case on
+        macOS/Windows already, but we lowercase too to keep project IDs stable
+        regardless of FS quirks.
+        """
+        import hashlib
+        p = tmp_path / "MixedCase"
+        p.mkdir()
+        expected = hashlib.sha256(str(p.resolve()).lower().encode("utf-8")).hexdigest()[:8]
+        assert path_hash(p) == expected
+
 
 class TestProjectId:
     def test_stable_for_same_path(self, tmp_path):

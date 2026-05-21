@@ -19,13 +19,19 @@ The mental model:
 - Everything else (your real home, ssh keys, cloud credentials, dbt profiles, `.git` history) is invisible to the container.
 - `git` and `gh` aren't installed in the image — version control stays on your host where you can review changes before committing.
 
-> macOS only. Windows path edge cases are explicitly out of scope.
-
 ## Requirements
 
-- **macOS** (Apple Silicon or Intel)
+- **OS**: macOS, Linux, or Windows. See [Platform notes](#platform-notes) below for the practical differences.
 - **Python 3.11+**
-- **[Docker](https://www.docker.com/products/docker-desktop/) installed and running.** `aibox` shells out to the `docker` CLI; it won't start a container if Docker Desktop (or another Docker installation) isn't available. Verify with `docker version`.
+- **Docker installed and running.** `aibox` shells out to the `docker` CLI; it won't start a container if Docker isn't available. Verify with `docker version`.
+
+### Platform notes
+
+| Platform | Docker option | Notes |
+|----------|--------------|-------|
+| **macOS** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Tested. Bind-mount ownership is translated transparently. |
+| **Linux** | Docker Engine (or Desktop) | Tested. The container's `dev` user is retuned at startup to match your host UID/GID via an entrypoint script, so files you create in `/workspace` are owned by you on the host. |
+| **Windows** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) **or** WSL2 + Docker Engine | Docker Desktop on Windows is paid for commercial use over a certain company size. WSL2 + Docker Engine is a free alternative — install Docker Engine inside a WSL2 distro and run `aibox` from inside WSL. |
 
 ## Install
 
@@ -181,6 +187,10 @@ aibox rebuild-image
 ```
 
 Run this after changing the Dockerfile, or whenever you want to refresh the base image. All projects share the same `aibox-default:latest` image.
+
+## Known limitations
+
+- **Symlinked project directories are not tested cross-platform.** They likely work on macOS and Linux as-is. Behaviour on Windows (junction points vs symlinks, and symlinks that cross between WSL and Windows paths) is unverified. File an issue if you hit something.
 
 ## Non-goals
 

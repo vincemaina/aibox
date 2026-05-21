@@ -19,7 +19,7 @@ def make_namespace(**overrides) -> argparse.Namespace:
         env_file=[],
         shell=None,
         docker_arg=[],
-        user="dev",
+        user=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -105,6 +105,10 @@ class TestMerge:
     def test_user_passes_through_from_cli(self, identity):
         spec = merge(ProjectConfig(), make_namespace(user="root"), identity)
         assert spec.user == "root"
+
+    def test_user_none_passes_through(self, identity):
+        spec = merge(ProjectConfig(), make_namespace(user=None), identity)
+        assert spec.user is None
 
     def test_mask_git_follows_identity(self, tmp_path):
         (tmp_path / ".git").mkdir()

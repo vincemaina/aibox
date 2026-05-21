@@ -32,8 +32,13 @@ def slugify(name: str) -> str:
 
 
 def path_hash(path: Path) -> str:
-    """8-char hex SHA-256 of the resolved absolute path."""
-    resolved = str(path.resolve()).encode("utf-8")
+    """8-char hex SHA-256 of the resolved absolute path (case-normalised).
+
+    Lowercasing the path string keeps project IDs stable on case-insensitive
+    filesystems (default macOS HFS+/APFS, Windows NTFS) where ``Path.resolve()``
+    can preserve whatever case the user typed.
+    """
+    resolved = str(path.resolve()).lower().encode("utf-8")
     return hashlib.sha256(resolved).hexdigest()[:8]
 
 

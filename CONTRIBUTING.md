@@ -33,6 +33,12 @@ The test suite never invokes real Docker — every `subprocess.run` call is mock
 - [`PROMPT.md`](./PROMPT.md) — the original specification.
 - [`CLAUDE.md`](./CLAUDE.md) — working practices for AI coding agents in this repo.
 
+## Platform support
+
+- **macOS**, **Linux**, and **Windows** are all in CI (`.github/workflows/ci.yml`).
+- The pytest suite is OS-agnostic — no real Docker calls, no platform branches in test assertions. The CI matrix is `{ubuntu-latest, macos-latest, windows-latest} × {3.11, 3.12, 3.13}`.
+- A Docker-backed e2e job (real `docker build` + container run on Ubuntu) is in the [`ROADMAP.md`](./ROADMAP.md) Future Work list; not in CI today.
+
 ## Working practices
 
 - **Stdlib only at runtime.** No runtime dependencies. `pytest` is the only dev dependency. If you think you need a third-party runtime dep, open an issue first.

@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import platform
 import sys
 
 from . import config, docker, identity
 from . import __version__
 from .config import ConfigError
 from .docker import DockerError, RunSpec
+
+
+def _default_user() -> str | None:
+    """Default value for the ``--user`` flag.
+
+    - macOS/Windows: ``"dev"``. Docker Desktop translates bind-mount ownership
+      transparently, so running directly as the in-image ``dev`` user is fine.
+    - Linux: ``None`` (no ``--user`` flag passed). The container starts as root
+      and the entrypoint retunes the ``dev`` user's UID/GID to match the host
+      before dropping privileges via gosu.
+    """
+    if platform.system() == "Linux":
+        return None
+    return "dev"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,7 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="ARG",
         help="Raw passthrough to docker run. Use --docker-arg=VALUE form when VALUE starts with --.",
     )
-    run.add_argument("--user", default="dev")
+    run.add_argument(
+        "--user",
+        default=_default_user(),
+        help="Override the container user. Default: 'dev' on macOS/Windows, "
+        "host UID:GID on Linux (entrypoint handles the drop).",
+    )
 
     subparsers.add_parser("info", help="Show project paths, IDs, and volume names")
 
@@ -79,7 +99,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         env_files=[],
         docker_args=[],
         shell="/bin/bash",
-        user="dev",
+        user=_default_user(),
         mask_git=ident.git_present,
     )
     print_summary(spec, header="aibox project info")

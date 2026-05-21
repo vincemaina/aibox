@@ -142,12 +142,15 @@ strategy:
 
 This runs pytest (which doesn't invoke Docker) on every combination. Catches Python-level issues per platform.
 
-**Optional:** a separate job that runs the full Docker-backed flow on `ubuntu-latest` (where Docker is preinstalled on GitHub runners). Adds confidence but slows CI by ~3 minutes. Worth it.
+**Deferred to Future Work:** a separate job that runs the full Docker-backed flow on `ubuntu-latest`. See `ROADMAP.md` Future Work.
 
 ### 7. Documentation updates
 
-- `README.md` Requirements section: list macOS, Linux, Windows (Docker Desktop or WSL2 + Docker Engine).
-- `README.md` Install: note pipx works on all three.
+- `README.md` Requirements section: list macOS, Linux, Windows. Call out **two** Windows paths explicitly:
+  - Docker Desktop on Windows (commercial licensing applies)
+  - WSL2 + Docker Engine (free, recommended for Windows users without a Docker Desktop licence)
+- `README.md`: add a "Known limitations" subsection noting that **symlinked project directories are not tested cross-platform**. They likely work on macOS/Linux as-is; behaviour on Windows (junction points vs symlinks vs WSL crossings) is unverified.
+- `README.md` Install: note pipx works on all three platforms.
 - `CLAUDE.md`: drop the "macOS focus" line; replace with "Cross-platform, tested on macOS/Linux/Windows".
 - `CONTRIBUTING.md`: note the CI matrix and how to run platform-specific tests locally.
 - `ROADMAP.md`: move "Windows support" out of Future Work into completed phase 7.
@@ -182,10 +185,10 @@ ROADMAP.md                                   # move Windows support, mark phase 
 - No regression in the existing 80 tests.
 - README badges show CI green for all matrix entries.
 
-## Decisions to flag during plan mode
+## Decisions (locked in)
 
-- **`gosu` vs `su-exec` vs `tini`** for privilege dropping. `gosu` is the most common; ~3MB. Confirm we're OK adding it to the image.
-- **CI Docker-backed e2e job.** Slows CI by ~3 minutes per run. Worth it for confidence, optional for cost. Recommend yes, gated to `push` events only (skip on PRs to save minutes).
-- **What "supported" means.** Without continuous manual testing on Windows, we should commit only to "tested on every CI run" not "guaranteed bug-free." Open to issues being filed and fixed reactively.
-- **Docker Desktop alternative on Windows.** Document WSL2 + Docker Engine as an explicit supported path, since many users won't have Desktop licences.
-- **Symlinks in project directories.** Untested cross-platform behaviour. Likely fine, but worth a one-off check.
+- **`gosu` for privilege dropping.** Adding to the Dockerfile (~2MB). Standard pattern used by official `postgres`/`redis`/`node` images.
+- **No Docker-backed CI job in this phase.** Deferred to Future Work in `ROADMAP.md`. CI matrix still runs the OS-agnostic pytest suite on all three platforms.
+- **WSL2 + Docker Engine documented as a first-class Windows path.** Separate install instructions in `README.md`, alongside Docker Desktop.
+- **Symlinks not tested cross-platform.** Explicitly called out as a known limitation in `README.md`. We won't add tests for them in this phase.
+- **"Supported" means:** pytest is green on every push for the matrix entry; manual `aibox run` has been done at least once on the platform. No promise of bug-free behaviour — issues filed against unforeseen edge cases are welcome.

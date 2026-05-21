@@ -12,7 +12,7 @@ High-level plan for building the `aibox` CLI. See [`PROMPT.md`](./PROMPT.md) for
 | 4  | [CLI commands](./plans/phase-4-cli-commands.md)    | Done        | `run`, `info`, `remove-volume`, `rebuild-image`, all flags.          |
 | 5  | [Config](./plans/phase-5-config.md)                | Done        | `.aibox.toml` parsing and CLI merge rules.                           |
 | 6  | [Polish](./plans/phase-6-polish.md)                | Done        | Error handling, README, end-to-end tests, subfolder CLAUDE.md files. |
-| 7  | [Cross-platform support](./plans/phase-7-cross-platform.md) | Not started | macOS + Linux + Windows. `--mount` syntax, case-normalised path hash, Linux UID/GID handling, OS matrix in CI. |
+| 7  | [Cross-platform support](./plans/phase-7-cross-platform.md) | Done        | macOS + Linux + Windows. `--mount` syntax, case-normalised path hash, Linux UID/GID handling, OS matrix in CI. |
 
 ## Guiding principles
 
@@ -61,3 +61,5 @@ Captured here so the MVP scope stays tight. Promote items to their own plan file
 - **Remote VM support.** Same UX but the container runs on a remote host.
 - **`--no-cache` for `rebuild-image`.** Useful when debugging the Dockerfile.
 - **End-to-end test harness.** A pytest fixture that builds the image, runs a container, asserts behaviour. Slow, opt-in via a marker.
+- **Docker-backed CI job.** Deferred from phase 7. A separate `ubuntu-latest` job (Docker is preinstalled on GitHub runners) that runs `docker build` + a smoke-test container run after the pytest matrix. Adds ~3 min/run; gate to `push` to `main` only to save PR minutes.
+- **Symlink behaviour audit.** Phase 7 documents that symlinked project directories aren't tested cross-platform. Worth a proper audit: macOS symlinks, Linux symlinks, Windows junction points, WSL crossing into Windows paths. Likely fine in most cases but currently a known unknown.

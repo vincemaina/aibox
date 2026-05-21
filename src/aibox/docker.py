@@ -7,6 +7,7 @@ can be snapshot-tested without invoking Docker.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from importlib.resources import as_file, files
@@ -27,8 +28,15 @@ class RunSpec:
     env_files: list[str]
     docker_args: list[str]
     shell: str
-    user: str
+    user: str | None
     mask_git: bool
+
+
+def _host_uid_gid() -> tuple[int, int]:
+    """Return (uid, gid) of the invoking host user, with sane fallbacks on Windows."""
+    uid = getattr(os, "getuid", lambda: 1000)()
+    gid = getattr(os, "getgid", lambda: 1000)()
+    return uid, gid
 
 
 def check_available() -> None:
@@ -113,16 +121,25 @@ def build_run_args(spec: RunSpec) -> list[str]:
         "docker", "run", "--rm", "-it",
         "--name", spec.identity.container,
         "--workdir", "/workspace",
-        "--user", spec.user,
-        "-v", f"{spec.identity.cwd}:/workspace",
-        "-v", f"{spec.identity.volumes['home']}:/home/dev",
-        "-v", f"{spec.identity.volumes['tmp']}:/tmp",
-        "-v", f"{spec.identity.volumes['var_tmp']}:/var/tmp",
-        "-v", f"{spec.identity.volumes['opt']}:/opt",
+    ]
+
+    if spec.user is not None:
+        args += ["--user", spec.user]
+
+    args += [
+        "--mount", f"type=bind,source={spec.identity.cwd},target=/workspace",
+        "--mount", f"type=volume,source={spec.identity.volumes['home']},target=/home/dev",
+        "--mount", f"type=volume,source={spec.identity.volumes['tmp']},target=/tmp",
+        "--mount", f"type=volume,source={spec.identity.volumes['var_tmp']},target=/var/tmp",
+        "--mount", f"type=volume,source={spec.identity.volumes['opt']},target=/opt",
     ]
 
     if spec.mask_git:
-        args += ["--mount", "type=tmpfs,destination=/workspace/.git"]
+        args += ["--mount", "type=tmpfs,target=/workspace/.git"]
+
+    # The entrypoint uses these to retune the in-container `dev` user when running as root.
+    uid, gid = _host_uid_gid()
+    args += ["-e", f"HOST_UID={uid}", "-e", f"HOST_GID={gid}"]
 
     for port in spec.ports:
         args += ["-p", port]

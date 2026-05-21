@@ -110,7 +110,7 @@ CLI flags append to or override config values; `--shell` overrides config `shell
 1. **Minimal dependencies**: Use only Python standard library unless there is a very strong reason not to.
 2. **No shell=True**: Always use `subprocess.run([...])` with argument lists for safety.
 3. **Readable over clever**: Prefer straightforward, maintainable Python.
-4. **macOS focus**: MVP targets macOS. Do not spend time on Windows path issues.
+4. **Cross-platform**: macOS, Linux, and Windows are all supported. The container is always Linux regardless of host. UID handling on Linux uses an entrypoint script that retunes the `dev` user via gosu.
 5. **Credential safety**: Strict enforcement — no host home directory mounting.
 6. **Git safety**: Host `.git` must be masked. Do not add `--allow-git` unless trivial.
 7. **Container disposability**: Image/Dockerfile define system environment; container filesystem is ephemeral.

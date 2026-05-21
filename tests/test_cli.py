@@ -4,6 +4,8 @@ All Docker interaction is mocked. `identity.resolve` is patched to point at a
 ``tmp_path`` so tests don't depend on the cwd.
 """
 
+import platform
+
 import pytest
 
 from aibox import cli, docker, identity
@@ -115,6 +117,20 @@ class TestCmdRemoveVolume:
         assert main(["remove-volume", "--force"]) == 0
         assert removed == []
         assert "Skipped" in capsys.readouterr().out
+
+
+class TestPlatformAwareDefaultUser:
+    def test_macos_default_is_dev(self, monkeypatch):
+        monkeypatch.setattr(cli.platform, "system", lambda: "Darwin")
+        assert cli._default_user() == "dev"
+
+    def test_windows_default_is_dev(self, monkeypatch):
+        monkeypatch.setattr(cli.platform, "system", lambda: "Windows")
+        assert cli._default_user() == "dev"
+
+    def test_linux_default_is_none(self, monkeypatch):
+        monkeypatch.setattr(cli.platform, "system", lambda: "Linux")
+        assert cli._default_user() is None
 
 
 class TestCmdRebuildImage:
