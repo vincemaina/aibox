@@ -1,5 +1,13 @@
 # CLAUDE HACKS
 
+# Git Management
+
+Always leave git management to me — commits, pushes, branches, tags, rebases, merges, stashes. Do not run any of these on your own. Suggest commit messages or describe the diff if useful, but do not execute the git commands yourself.
+
+If I explicitly tell you to perform a git action ("go ahead and commit this", "push the branch"), treat it as a one-time exception for that specific task. Do not adopt it as a new default. The next time the work is in a committable state, wait for me again.
+
+Reason: git operations are visible to others and hard to reverse. I want to review every change before it's recorded in history.
+
 # Subfolder [CLAUDE.md](http://CLAUDE.md)
 
 Experimenting with having [CLAUDE.md](http://CLAUDE.md) files in every subfolder
