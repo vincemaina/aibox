@@ -402,6 +402,16 @@ Everything else = disposable image/container filesystem
 
 ## Git safety
 
+> **Post-MVP revision (2026-06):** This section originally specified that `git`
+> not be installed at all. That was reversed — `git` IS now installed in the
+> image, because Claude Code plugins/marketplaces are git-based and the agent
+> needs `git clone` to install them. The security guarantees are unchanged: the
+> host `.git` is still masked, no credentials are mounted, and `gh` is still
+> excluded, so the agent still cannot read your history or push to remotes. See
+> `README.md` ("Git is installed, but `gh` and credentials are not") and
+> `CLAUDE.md` for the current behaviour. The original text below is kept for
+> historical context.
+
 The host project may have a `.git` directory.
 
 By default, hide the host `.git` directory inside the container.

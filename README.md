@@ -17,7 +17,7 @@ The mental model:
 - `/workspace` inside the container is a live bind mount of your project. Edit freely.
 - `/home/dev`, `/tmp`, `/var/tmp`, `/opt` are per-project named volumes that persist across runs.
 - Everything else (your real home, ssh keys, cloud credentials, dbt profiles, `.git` history) is invisible to the container.
-- `git` and `gh` aren't installed in the image — version control stays on your host where you can review changes before committing.
+- `git` is installed so the agent can clone public repos and install Claude Code plugins, but the GitHub CLI (`gh`) is not, and no credentials are mounted — so the agent can't push to or authenticate against your remotes. Your real `.git` history is masked.
 
 ## Requirements
 
@@ -120,13 +120,19 @@ Everything else (the rest of `/`) is part of the image and reset every time the 
 
 Everything outside the four volumes. The container is `--rm`, so changes to `/etc`, `/usr`, `/lib` etc. are gone on exit. Persistent system changes belong in the Dockerfile — rebuild the image with `aibox rebuild-image`.
 
-## Why `.git` is hidden
+## Why your `.git` history is hidden
 
-Version control should stay on the host. The agent should be able to edit working files freely, but it should not inspect your commit history, push to remotes, or make commits on your behalf — that work happens in your IDE/terminal where you can review changes before publishing them.
+Your real commit history should stay under your control. The host `.git` directory is masked with a tmpfs, so even though `git` is available in the container, the agent sees an empty `.git` and cannot read or rewrite your history. You review and commit changes from your own IDE/terminal where the real `.git` lives.
 
-## Why Git and GitHub CLI aren't installed
+## Git is installed, but `gh` and credentials are not
 
-Same reason. The image doesn't include `git` or `gh` so the agent can't reach for them out of habit. If you need git operations, do them from the host.
+`git` is included in the image because agents legitimately need it — cloning public repos, installing Claude Code plugins and marketplaces (which are git-based), pulling reference code. What's deliberately absent:
+
+- **No GitHub CLI (`gh`)** — the tool most geared toward authenticated remote GitHub operations.
+- **No credentials** — no SSH keys, no GitHub tokens, no `~/.gitconfig`. So the agent can `git clone` public URLs and even `git init`/`commit` locally inside `/workspace`, but it **cannot push to your remotes or authenticate as you**.
+- **Masked host `.git`** — see above.
+
+Net effect: the agent gets git's read-only and local-only powers, not the ability to act against your remote repositories.
 
 ## Why host credentials aren't mounted
 
@@ -199,11 +205,10 @@ For the MVP, aibox deliberately does not support:
 - Docker Compose
 - Custom images (one default image only)
 - Mounting the Docker socket
-- GitHub integration (`gh`, tokens)
+- GitHub authentication (`gh`, tokens, SSH keys) — `git` itself is installed, but the agent can't authenticate to remotes
 - Installing Claude Code into the image (do that inside the container)
 - Cloud credential mounting
 - SSH key mounting
-- Windows
 - Automatic port detection
 - A background daemon
 - Remote VM support

@@ -31,7 +31,7 @@ This is a non-MVP enhancement to keep in mind as the CLI evolves; the MVP should
 **Key security principles:**
 - Containers are disposable; only user state persists in Docker volumes
 - `.git` directory is hidden from containers (masked with tmpfs)
-- Git and GitHub CLI are not installed in containers
+- `git` IS installed (agents need it to clone public repos and install Claude Code plugins/marketplaces), but the GitHub CLI (`gh`) is not, and no credentials are mounted — so the agent cannot authenticate to or push to remotes
 - Host home directory is never mounted; only `/workspace`, `/home/dev`, `/tmp`, `/var/tmp`, `/opt` are visible
 - No Docker socket, SSH keys, cloud credentials, or credential folders are mounted
 
@@ -83,8 +83,8 @@ Current project bind-mounted to `/workspace`. If `.git` exists on host, mask it 
 Base: `python:3.12-slim`
 - Non-root user `dev` with `/home/dev` as home
 - User-local tool paths: `~/.npm-global/bin`, `~/.local/bin`, `/opt/bin` in PATH
-- Tools: bash, curl, ca-certificates, build-essential, vim/nano, jq, ripgrep, fd-find, unzip, nodejs, npm
-- **No Git, no GitHub CLI** (intentional — version control stays on host)
+- Tools: bash, curl, ca-certificates, build-essential, vim/nano, jq, ripgrep, fd-find, unzip, nodejs, npm, git, gosu
+- **git included, `gh` excluded.** git lets agents clone public repos / install plugins. Without `gh` or mounted credentials the agent still can't push to or authenticate against remotes. The host `.git` is masked at runtime so history stays protected.
 
 ### Configuration (`.aibox.toml`)
 Optional project-level config in the project root. Supports:
@@ -112,7 +112,7 @@ CLI flags append to or override config values; `--shell` overrides config `shell
 3. **Readable over clever**: Prefer straightforward, maintainable Python.
 4. **Cross-platform**: macOS, Linux, and Windows are all supported. The container is always Linux regardless of host. UID handling on Linux uses an entrypoint script that retunes the `dev` user via gosu.
 5. **Credential safety**: Strict enforcement — no host home directory mounting.
-6. **Git safety**: Host `.git` must be masked. Do not add `--allow-git` unless trivial.
+6. **Git safety**: Host `.git` must be masked (tmpfs) so the agent can't read or modify real history. `git` itself is installed (for clones/plugins), but safety comes from the masked `.git` + absence of credentials/`gh`, not from withholding the binary.
 7. **Container disposability**: Image/Dockerfile define system environment; container filesystem is ephemeral.
 
 ## Development Commands (to be established)

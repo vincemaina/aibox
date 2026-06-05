@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 
 # Useful tooling for AI coding agents.
-# git and gh are intentionally NOT installed — version control stays on the host.
+# git IS installed so agents can clone public repos and install plugins/marketplaces.
+# The GitHub CLI (gh) is intentionally NOT installed, and no credentials are mounted,
+# so the agent still cannot push to or authenticate against remote repositories.
+# The host's .git directory is masked at runtime, so history stays protected.
 # gosu is added for privilege dropping in the entrypoint.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash \
@@ -16,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       unzip \
       nodejs \
       npm \
+      git \
       gosu \
     && rm -rf /var/lib/apt/lists/*
 

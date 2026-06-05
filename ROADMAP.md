@@ -21,7 +21,7 @@ These shape every phase. Full context in [`CLAUDE.md`](./CLAUDE.md) and [`claude
 - **Stdlib only** unless there's a very strong reason otherwise (per [`PROMPT.md`](./PROMPT.md)).
 - **No `shell=True`** — always pass argument lists to `subprocess.run`.
 - **macOS-first** — don't burn time on Windows path edge cases.
-- **Security non-negotiables** — no host home mount, no Docker socket, no SSH/cloud/dbt credentials, `.git` masked, no Git/GitHub CLI in image.
+- **Security non-negotiables** — no host home mount, no Docker socket, no SSH/cloud/dbt credentials, `.git` masked, no GitHub CLI (`gh`) or credentials in image. (`git` itself is installed so agents can clone public repos / install plugins; safety comes from the masked `.git` + absent credentials, not from withholding the binary.)
 - **Boring code beats clever code** — readability and maintainability over abstraction.
 - **Tests enforce practices** — at minimum, a test that every directory has a `CLAUDE.md` (per [`claude-best-practices.md`](./claude-best-practices.md)).
 
@@ -57,7 +57,7 @@ Captured here so the MVP scope stays tight. Promote items to their own plan file
 - **Docker Compose support.** For projects that need sidecar services (Postgres, Redis, etc.).
 - **GitHub integration.** Opt-in, scoped read-only token mount. Not the default.
 - **Automatic port detection.** Read package.json / pyproject.toml / docker-compose.yml for likely ports.
-- **`--allow-git` flag.** Opt-in to keep `.git` visible inside the container.
+- **`--allow-git-history` flag.** Opt-in to *unmask* the host `.git` so the agent can read commit history inside the container. (`git` itself is now always installed; this would only lift the tmpfs mask. Default stays masked.)
 - **Remote VM support.** Same UX but the container runs on a remote host.
 - **`--no-cache` for `rebuild-image`.** Useful when debugging the Dockerfile.
 - **End-to-end test harness.** A pytest fixture that builds the image, runs a container, asserts behaviour. Slow, opt-in via a marker.
