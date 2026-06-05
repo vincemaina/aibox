@@ -35,7 +35,10 @@ def _host_uid_gid() -> tuple[int, int]:
 
 
 class TestBuildRunArgs:
-    def test_canonical_minimal_command(self, identity):
+    def test_canonical_minimal_command(self, identity, monkeypatch):
+        # Clear terminal env so the snapshot is independent of where tests run.
+        monkeypatch.delenv("TERM", raising=False)
+        monkeypatch.delenv("COLORTERM", raising=False)
         spec = make_spec(identity)
         args = build_run_args(spec)
         uid, gid = _host_uid_gid()
@@ -88,6 +91,32 @@ class TestBuildRunArgs:
         gid_envs = [args[i + 1] for i in range(len(args) - 1) if args[i] == "-e" and args[i + 1].startswith("HOST_GID=")]
         assert len(uid_envs) == 1
         assert len(gid_envs) == 1
+
+    def test_term_forwarded_when_set(self, identity, monkeypatch):
+        monkeypatch.setenv("TERM", "xterm-256color")
+        monkeypatch.delenv("COLORTERM", raising=False)
+        args = build_run_args(make_spec(identity))
+        assert "-e" in args and "TERM=xterm-256color" in args
+
+    def test_colorterm_forwarded_when_set(self, identity, monkeypatch):
+        monkeypatch.setenv("TERM", "xterm-256color")
+        monkeypatch.setenv("COLORTERM", "truecolor")
+        args = build_run_args(make_spec(identity))
+        assert "COLORTERM=truecolor" in args
+
+    def test_terminal_env_omitted_when_unset(self, identity, monkeypatch):
+        monkeypatch.delenv("TERM", raising=False)
+        monkeypatch.delenv("COLORTERM", raising=False)
+        args = build_run_args(make_spec(identity))
+        assert not any(a.startswith("TERM=") or a.startswith("COLORTERM=") for a in args)
+
+    def test_explicit_env_term_overrides_host(self, identity, monkeypatch):
+        # User's --env TERM=... is appended after the host passthrough, so Docker uses theirs.
+        monkeypatch.setenv("TERM", "xterm-256color")
+        args = build_run_args(make_spec(identity, env=["TERM=screen"]))
+        host_idx = args.index("TERM=xterm-256color")
+        user_idx = args.index("TERM=screen")
+        assert user_idx > host_idx
 
     def test_ports_each_get_dash_p(self, identity):
         args = build_run_args(make_spec(identity, ports=["3000:3000", "8000:8000"]))

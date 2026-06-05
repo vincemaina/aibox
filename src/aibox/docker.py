@@ -39,6 +39,22 @@ def _host_uid_gid() -> tuple[int, int]:
     return uid, gid
 
 
+def _terminal_env_args() -> list[str]:
+    """Forward the host terminal's TERM/COLORTERM so colour support matches.
+
+    `docker run -it` otherwise defaults TERM to `xterm` (8 colours) instead of
+    the host's value (often `xterm-256color` → 256 colours). The matching
+    terminfo entries ship with the image's ncurses. Added before the user's own
+    `-e` flags so an explicit `--env TERM=...` still wins.
+    """
+    args: list[str] = []
+    for var in ("TERM", "COLORTERM"):
+        value = os.environ.get(var)
+        if value:
+            args += ["-e", f"{var}={value}"]
+    return args
+
+
 def check_available() -> None:
     try:
         result = subprocess.run(
@@ -140,6 +156,9 @@ def build_run_args(spec: RunSpec) -> list[str]:
     # The entrypoint uses these to retune the in-container `dev` user when running as root.
     uid, gid = _host_uid_gid()
     args += ["-e", f"HOST_UID={uid}", "-e", f"HOST_GID={gid}"]
+
+    # Forward host terminal colour capability (added before user env so --env wins).
+    args += _terminal_env_args()
 
     for port in spec.ports:
         args += ["-p", port]
