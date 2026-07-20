@@ -27,5 +27,7 @@ Each plan follows the same shape:
 - `phase-4-cli-commands.md`
 - `phase-5-config.md`
 - `phase-6-polish.md`
+- `phase-7-cross-platform.md`
+- `phase-8-podman.md`
 
 A test (`tests/test_repo_structure.py`) asserts every `phase-*.md` here is referenced from `ROADMAP.md`, so adding a new plan without indexing it will fail CI.
