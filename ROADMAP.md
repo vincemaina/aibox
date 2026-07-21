@@ -13,6 +13,7 @@ High-level plan for building the `aibox` CLI. See [`PROMPT.md`](./PROMPT.md) for
 | 5  | [Config](./plans/phase-5-config.md)                | Done        | `.aibox.toml` parsing and CLI merge rules.                           |
 | 6  | [Polish](./plans/phase-6-polish.md)                | Done        | Error handling, README, end-to-end tests, subfolder CLAUDE.md files. |
 | 7  | [Cross-platform support](./plans/phase-7-cross-platform.md) | Done        | macOS + Linux + Windows. `--mount` syntax, case-normalised path hash, Linux UID/GID handling, OS matrix in CI. |
+| 8  | [Podman support](./plans/phase-8-podman.md)        | Not started | Rootless Podman alongside Docker. Engine detection, SELinux relabel, `keep-id` UID mapping, and a `.git` masking fix. |
 
 ## Guiding principles
 
