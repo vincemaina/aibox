@@ -17,11 +17,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ripgrep \
       fd-find \
       unzip \
-      nodejs \
-      npm \
+      xz-utils \
       git \
       gosu \
     && rm -rf /var/lib/apt/lists/*
+
+# Node.js from the official distribution rather than Debian's `nodejs` package,
+# which is stuck on v20. Claude Code declares `engines: { node: ">=22.0.0" }`, so
+# the Debian build installs with an EBADENGINE warning and runs unsupported.
+ARG NODE_VERSION=24.19.0
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) node_arch='x64' ;; \
+      arm64) node_arch='arm64' ;; \
+      *) echo "unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    tarball="node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
+    cd /tmp; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${tarball}"; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"; \
+    grep " ${tarball}\$" SHASUMS256.txt | sha256sum -c -; \
+    tar -xJf "${tarball}" -C /usr/local --strip-components=1 --no-same-owner \
+        --exclude=CHANGELOG.md --exclude=LICENSE --exclude=README.md; \
+    rm -f "${tarball}" SHASUMS256.txt; \
+    node --version; \
+    npm --version
 
 # Non-root dev user. UID/GID may be retuned at container start by entrypoint.sh
 # to match the invoking host user.
@@ -35,6 +55,19 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 ENV HOME=/home/dev \
     NPM_CONFIG_PREFIX=/home/dev/.npm-global \
     PATH=/home/dev/.npm-global/bin:/home/dev/.local/bin:/opt/bin:$PATH
+
+# `ENV PATH` alone is not enough: /etc/profile assigns PATH outright, so a login
+# shell (`bash -l`, `su -`) drops the entries above and globally-installed tools
+# like `claude` vanish. profile.d runs after that assignment, restoring them.
+RUN printf '%s\n' \
+      'for d in /home/dev/.npm-global/bin /home/dev/.local/bin /opt/bin; do' \
+      '    case ":$PATH:" in' \
+      '        *":$d:"*) ;;' \
+      '        *) PATH="$d:$PATH" ;;' \
+      '    esac' \
+      'done' \
+      'export PATH' \
+    > /etc/profile.d/aibox-path.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

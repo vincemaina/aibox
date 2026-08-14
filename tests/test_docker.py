@@ -160,6 +160,58 @@ class TestCheckAvailable:
         with pytest.raises(DockerError, match="not running"):
             docker.check_available()
 
+    def _deny_permission(self, monkeypatch, system):
+        def fake_run(*a, **kw):
+            return subprocess.CompletedProcess(
+                args=a,
+                returncode=1,
+                stdout="",
+                stderr=(
+                    "permission denied while trying to connect to the Docker "
+                    "API at unix:///var/run/docker.sock"
+                ),
+            )
+        monkeypatch.setattr(docker.subprocess, "run", fake_run)
+        monkeypatch.setattr(docker.platform, "system", lambda: system)
+
+    def test_permission_denied_is_not_reported_as_daemon_down(self, monkeypatch):
+        self._deny_permission(monkeypatch, "Linux")
+        with pytest.raises(DockerError) as excinfo:
+            docker.check_available()
+        assert "Permission denied" in str(excinfo.value)
+        assert "not running" not in str(excinfo.value)
+
+    def test_permission_denied_on_linux_suggests_docker_group(self, monkeypatch):
+        self._deny_permission(monkeypatch, "Linux")
+        with pytest.raises(DockerError, match="usermod -aG docker"):
+            docker.check_available()
+
+    def test_permission_denied_off_linux_omits_group_hint(self, monkeypatch):
+        self._deny_permission(monkeypatch, "Darwin")
+        with pytest.raises(DockerError) as excinfo:
+            docker.check_available()
+        assert "usermod" not in str(excinfo.value)
+
+    @pytest.mark.parametrize(
+        "system,expected",
+        [("Linux", "systemctl start docker"), ("Darwin", "Docker Desktop")],
+    )
+    def test_daemon_down_hint_is_platform_specific(self, monkeypatch, system, expected):
+        def fake_run(*a, **kw):
+            return subprocess.CompletedProcess(args=a, returncode=1, stdout="", stderr="cannot connect")
+        monkeypatch.setattr(docker.subprocess, "run", fake_run)
+        monkeypatch.setattr(docker.platform, "system", lambda: system)
+        with pytest.raises(DockerError, match=expected):
+            docker.check_available()
+
+    def test_missing_binary_hint_is_platform_specific(self, monkeypatch):
+        def boom(*a, **kw):
+            raise FileNotFoundError
+        monkeypatch.setattr(docker.subprocess, "run", boom)
+        monkeypatch.setattr(docker.platform, "system", lambda: "Linux")
+        with pytest.raises(DockerError, match="Docker Engine"):
+            docker.check_available()
+
     def test_succeeds_when_daemon_up(self, monkeypatch):
         def fake_run(*a, **kw):
             return subprocess.CompletedProcess(args=a, returncode=0, stdout="27.0.3", stderr="")

@@ -83,7 +83,9 @@ Current project bind-mounted to `/workspace`. If `.git` exists on host, mask it 
 Base: `python:3.12-slim`
 - Non-root user `dev` with `/home/dev` as home
 - User-local tool paths: `~/.npm-global/bin`, `~/.local/bin`, `/opt/bin` in PATH
-- Tools: bash, curl, ca-certificates, build-essential, vim/nano, jq, ripgrep, fd-find, unzip, nodejs, npm, git, gosu
+- Tools: bash, curl, ca-certificates, build-essential, vim/nano, jq, ripgrep, fd-find, unzip, xz-utils, git, gosu
+- Node.js from the official nodejs.org tarball (pinned via the `NODE_VERSION` build arg, checksum-verified against `SHASUMS256.txt`), **not** Debian's `nodejs` package. Debian ships v20, but Claude Code requires `node >=22`. Bump `NODE_VERSION` in the Dockerfile to move Node versions.
+- `/etc/profile.d/aibox-path.sh` re-adds the user-local tool paths. `ENV PATH` alone is insufficient because `/etc/profile` assigns `PATH` outright, so login shells (`bash -l`, `su -`) would otherwise lose globally-installed tools like `claude`.
 - **git included, `gh` excluded.** git lets agents clone public repos / install plugins. Without `gh` or mounted credentials the agent still can't push to or authenticate against remotes. The host `.git` is masked at runtime so history stays protected.
 
 ### Configuration (`.aibox.toml`)

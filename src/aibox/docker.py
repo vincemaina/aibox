@@ -8,6 +8,7 @@ can be snapshot-tested without invoking Docker.
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
 from dataclasses import dataclass
 from importlib.resources import as_file, files
@@ -55,6 +56,13 @@ def _terminal_env_args() -> list[str]:
     return args
 
 
+def _install_hint() -> str:
+    """Platform-appropriate advice for getting a Docker daemon running."""
+    if platform.system() == "Linux":
+        return "Install Docker Engine and start it with 'sudo systemctl start docker'."
+    return "Install Docker Desktop and make sure it is running."
+
+
 def check_available() -> None:
     try:
         result = subprocess.run(
@@ -65,12 +73,26 @@ def check_available() -> None:
         )
     except FileNotFoundError as exc:
         raise DockerError(
-            "Docker is not installed or not on PATH. Install Docker Desktop and try again."
+            f"Docker is not installed or not on PATH. {_install_hint()}"
         ) from exc
-    if result.returncode != 0:
-        raise DockerError(
-            "Docker is not running. Start Docker Desktop and try again."
-        )
+    if result.returncode == 0:
+        return
+
+    # A reachable-but-forbidden socket is a distinct failure from a dead daemon:
+    # on Linux it usually means the user is not in the `docker` group. Reporting
+    # it as "not running" sends people off restarting a daemon that is already up.
+    stderr = result.stderr or ""
+    if "permission denied" in stderr.lower():
+        message = "Permission denied connecting to the Docker daemon."
+        if platform.system() == "Linux":
+            message += (
+                " Add yourself to the 'docker' group with"
+                " 'sudo usermod -aG docker $USER', then log out and back in"
+                " for the change to take effect."
+            )
+        raise DockerError(message)
+
+    raise DockerError(f"Docker is not running. {_install_hint()}")
 
 
 def image_exists(name: str) -> bool:
