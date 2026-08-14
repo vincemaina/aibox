@@ -12,6 +12,20 @@
 
 `aibox` is a small Python CLI that launches a disposable Docker container from any local project directory. It is built for running Claude Code or another AI coding agent inside a sandbox where the agent can edit the current project files but cannot see your home directory, credentials, dbt profiles, Snowflake credentials, GitHub credentials, or your `.git` history.
 
+## Why aibox
+
+- **Your credentials stay invisible.** Your home directory is never mounted. No SSH keys, cloud credentials, dbt profiles, or `~/.aws` — the container simply cannot see them.
+- **Your Git history is protected.** `/workspace/.git` is masked with an empty tmpfs, so an agent can't read your history or rewrite it.
+- **The agent still can't reach your remotes.** `git` *is* installed, so agents can clone public repos and install Claude Code plugins — but with no `gh` and no mounted credentials, there's nothing to authenticate or push with.
+- **No Docker socket.** The container can't escape by talking to the daemon that runs it.
+- **Runs as a non-root user** (`dev`) matched to your host UID/GID, so files you create in `/workspace` are owned by you, not by root.
+- **Disposable by default.** The container is removed on exit (`--rm`). Nothing accumulates.
+- **But your setup persists.** `/home/dev`, `/tmp`, `/var/tmp`, and `/opt` are per-project named volumes, so npm globals, shell history, and Claude config survive across sessions.
+- **Per-project isolation.** Each project gets its own volume set, keyed by a stable hash of its absolute path. Two projects never share state.
+- **Ready for Claude Code out of the box.** Ships with a current Node.js LTS (Claude Code needs `node >=22`), plus git, ripgrep, fd, jq, and build-essential.
+- **Zero runtime dependencies.** Pure Python standard library, shelling out to the `docker` CLI. No SDKs to install or keep in sync.
+- **Configurable per project.** An optional `.aibox.toml` adds ports, env vars, env files, a custom shell, or raw Docker arguments.
+
 The mental model:
 
 - `/workspace` inside the container is a live bind mount of your project. Edit freely.
@@ -32,6 +46,16 @@ The mental model:
 | **macOS** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Tested. Bind-mount ownership is translated transparently. |
 | **Linux** | Docker Engine (or Desktop) | Tested. The container's `dev` user is retuned at startup to match your host UID/GID via an entrypoint script, so files you create in `/workspace` are owned by you on the host. |
 | **Windows** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) **or** WSL2 + Docker Engine | Docker Desktop on Windows is paid for commercial use over a certain company size. WSL2 + Docker Engine is a free alternative — install Docker Engine inside a WSL2 distro and run `aibox` from inside WSL. |
+
+On Linux, Docker Engine only accepts connections from members of the `docker` group. If `aibox` reports a permission error, add yourself and start a new login session:
+
+```bash
+sudo usermod -aG docker $USER   # then log out and back in
+```
+
+Note that `docker` group membership is effectively root-level access on the host.
+
+Podman is **not** currently supported — its rootless UID mapping, SELinux labelling, and `tmpcopyup` behaviour all differ from Docker in ways that would silently unmask `.git`. See [`plans/phase-8-podman.md`](./plans/phase-8-podman.md). Fedora and RHEL users should install Docker Engine.
 
 ## Install
 
