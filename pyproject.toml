@@ -24,7 +24,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-"aibox.templates" = ["Dockerfile", "entrypoint.sh"]
+"aibox.image" = ["Dockerfile", "entrypoint.sh", "agent-briefing.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

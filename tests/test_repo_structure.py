@@ -4,7 +4,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-SKIP_DIR_NAMES = {".git", ".idea", "__pycache__", "templates", "node_modules"}
+SKIP_DIR_NAMES = {".git", ".idea", "__pycache__", "node_modules"}
 
 
 def _needs_claude_md(directory: Path) -> bool:

@@ -70,6 +70,30 @@ def container_name(
     return f"aibox-{pid}-{now.strftime('%Y%m%d-%H%M%S')}-{rand}"
 
 
+def git_dirs(cwd: Path) -> list[Path]:
+    """Every git directory under the project that host-side git executes code from.
+
+    That's the main ``.git`` plus one per submodule under ``.git/modules``. Each
+    has its own ``config`` and ``hooks/``, and git will happily run commands
+    named in either of them (``core.pager``, ``filter.*.clean``, a ``pre-commit``
+    hook, ...). When the agent is allowed to write to ``.git`` these all need the
+    same protection, so they're enumerated here rather than assuming a repo has
+    exactly one git dir.
+
+    Returns an empty list when there's no ``.git`` directory, including the case
+    where ``.git`` is a *file* (a linked worktree or submodule checkout) — the
+    real git dir then lives elsewhere and is out of scope for the bind mount.
+    """
+    root = cwd / ".git"
+    if not root.is_dir():
+        return []
+    dirs = [root]
+    modules = root / "modules"
+    if modules.is_dir():
+        dirs += sorted(p.parent for p in modules.rglob("config") if p.is_file())
+    return dirs
+
+
 @dataclass(frozen=True)
 class ProjectIdentity:
     cwd: Path
@@ -78,6 +102,7 @@ class ProjectIdentity:
     container: str
     volumes: dict[str, str]
     git_present: bool
+    git_dirs: tuple[Path, ...] = ()
 
 
 def resolve(cwd: Path | None = None) -> ProjectIdentity:
@@ -90,4 +115,5 @@ def resolve(cwd: Path | None = None) -> ProjectIdentity:
         container=container_name(pid),
         volumes=volume_names(pid),
         git_present=(cwd / ".git").is_dir(),
+        git_dirs=tuple(git_dirs(cwd)),
     )

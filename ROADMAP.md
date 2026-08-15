@@ -14,6 +14,9 @@ High-level plan for building the `aibox` CLI. See [`PROMPT.md`](./PROMPT.md) for
 | 6  | [Polish](./plans/phase-6-polish.md)                | Done        | Error handling, README, end-to-end tests, subfolder CLAUDE.md files. |
 | 7  | [Cross-platform support](./plans/phase-7-cross-platform.md) | Done        | macOS + Linux + Windows. `--mount` syntax, case-normalised path hash, Linux UID/GID handling, OS matrix in CI. |
 | 8  | [Podman support](./plans/phase-8-podman.md)        | Not started | Rootless Podman alongside Docker. Engine detection, SELinux relabel, `keep-id` UID mapping, and a `.git` masking fix. |
+| 9  | [Git access modes](./plans/phase-9-git-access.md)  | Done        | `--git masked\|readonly\|commit`. Agent can commit by default; `.git/hooks` and `.git/config` stay frozen so host git can't be made to run its code. |
+| 10 | [Project templates](./plans/phase-10-project-templates.md) | Done        | First-run `aibox setup` + per-project import offer. `aibox init` merges a template's `workspace/` into the project (never overwriting silently); its `home/` syncs into the container on every run, along with a built-in agent briefing. User-level config at `~/.config/aibox/config.toml`. |
+| 11 | [Browser testing](./plans/phase-11-browser-testing.md) | Done        | Chromium system deps in the default image so agents can drive Playwright, screenshot their work, and read the result back. |
 
 ## Guiding principles
 
@@ -22,7 +25,7 @@ These shape every phase. Full context in [`CLAUDE.md`](./CLAUDE.md) and [`claude
 - **Stdlib only** unless there's a very strong reason otherwise (per [`PROMPT.md`](./PROMPT.md)).
 - **No `shell=True`** — always pass argument lists to `subprocess.run`.
 - **macOS-first** — don't burn time on Windows path edge cases.
-- **Security non-negotiables** — no host home mount, no Docker socket, no SSH/cloud/dbt credentials, `.git` masked, no GitHub CLI (`gh`) or credentials in image. (`git` itself is installed so agents can clone public repos / install plugins; safety comes from the masked `.git` + absent credentials, not from withholding the binary.)
+- **Security non-negotiables** — no host home mount, no Docker socket, no SSH/cloud/dbt credentials, no GitHub CLI (`gh`) or credentials in image, and nothing the agent writes may cause code to execute on the *host*. Since phase 9 the agent can read history and commit locally by default; what stays closed is anything that reaches outside the container — remotes (no credentials) and host-executed git config/hooks. Protecting shared history is the remote's job, via branch protection.
 - **Boring code beats clever code** — readability and maintainability over abstraction.
 - **Tests enforce practices** — at minimum, a test that every directory has a `CLAUDE.md` (per [`claude-best-practices.md`](./claude-best-practices.md)).
 
@@ -33,8 +36,8 @@ Project is done when the acceptance criteria in `PROMPT.md` all pass:
 - `pip install -e .` exposes a global `aibox` command.
 - Running `aibox` from any project starts an interactive container with the project at `/workspace`.
 - The four named volumes persist across runs and are project-specific.
-- The host `.git` is masked when present.
-- Git/GitHub CLI are absent from the image.
+- The host `.git` is exposed per the selected `--git` mode, and host-executed git hooks/config stay frozen in every mode.
+- The GitHub CLI is absent from the image.
 - No host credentials are mounted.
 - `aibox info`, `aibox remove-volume`, and `aibox rebuild-image` behave per spec.
 - README explains install, usage, what's mounted/persisted, why `.git` is hidden, why credentials aren't mounted, and how to manage volumes/images.
@@ -53,12 +56,10 @@ If a plan turns out to be wrong as you work, update the plan file in the same co
 
 Captured here so the MVP scope stays tight. Promote items to their own plan file when picked up.
 
-- **Seed `claude-best-practices.md` into target projects.** Per `CLAUDE.md`'s "aibox should deploy these practices" note. Likely an `aibox init` command that writes the file plus a starter `.aibox.toml`. Do not auto-create on `aibox run`.
-- **Custom images.** Allow `.aibox.toml` to point at a different image or a project-local Dockerfile. Keeps the default image untouched.
+- **Custom images.** Allow `.aibox.toml` to point at a different image or a project-local Dockerfile. Keeps the default image untouched. See phase 11 — a browser-enabled variant is the natural first slice.
 - **Docker Compose support.** For projects that need sidecar services (Postgres, Redis, etc.).
 - **GitHub integration.** Opt-in, scoped read-only token mount. Not the default.
 - **Automatic port detection.** Read package.json / pyproject.toml / docker-compose.yml for likely ports.
-- **`--allow-git-history` flag.** Opt-in to *unmask* the host `.git` so the agent can read commit history inside the container. (`git` itself is now always installed; this would only lift the tmpfs mask. Default stays masked.)
 - **Remote VM support.** Same UX but the container runs on a remote host.
 - **`--no-cache` for `rebuild-image`.** Useful when debugging the Dockerfile.
 - **End-to-end test harness.** A pytest fixture that builds the image, runs a container, asserts behaviour. Slow, opt-in via a marker.

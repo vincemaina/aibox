@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Documentation — aibox CLI reference, config and security model</title>
+<meta name="description" content="Complete aibox reference: install, the run/init/info/remove-volume/rebuild-image commands and every flag, .aibox.toml and user config, Git access modes, templates, browser testing and troubleshooting.">
+<link rel="canonical" href="https://vincemaina.github.io/aibox/documentation.html">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="aibox">
+<meta property="og:title" content="aibox Documentation — CLI reference, configuration and security model">
+<meta property="og:description" content="Every aibox command and flag, .aibox.toml and user-level config, Git access modes, templates and browser testing.">
+<meta property="og:url" content="https://vincemaina.github.io/aibox/documentation.html">
+<meta property="og:image" content="https://vincemaina.github.io/aibox/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="aibox Documentation">
+<meta name="twitter:description" content="Every aibox command and flag, configuration, Git access modes, templates and browser testing.">
+<meta name="twitter:image" content="https://vincemaina.github.io/aibox/og-image.png">
+
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101419" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='5' y='5' width='22' height='22' rx='4' fill='none' stroke='%230b6e4f' stroke-width='4'/></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "aibox documentation",
+  "description": "Reference documentation for the aibox CLI: commands, flags, configuration files, Git access modes, templates, browser testing and the security model.",
+  "url": "https://vincemaina.github.io/aibox/documentation.html",
+  "author": { "@type": "Person", "name": "Vince Maina" },
+  "about": { "@type": "SoftwareApplication", "name": "aibox", "applicationCategory": "DeveloperApplication" }
+}
+</script>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="wordmark" href="./">aibox</a>
+    <nav>
+      <a href="./">Home</a>
+      <a href="#commands">Commands</a>
+      <a href="#config">Config</a>
+      <a href="https://github.com/vincemaina/aibox">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs">
+
+  <aside class="toc">
+    <nav aria-label="Documentation sections">
+      <strong>Start</strong>
+      <a href="#requirements">Requirements</a>
+      <a href="#install">Installation</a>
+      <a href="#quickstart">Quickstart</a>
+      <strong>Reference</strong>
+      <a href="#commands">Commands</a>
+      <a href="#run">aibox run</a>
+      <a href="#init">aibox init</a>
+      <a href="#setup">aibox setup</a>
+      <a href="#info">aibox info</a>
+      <a href="#remove-volume">aibox remove-volume</a>
+      <a href="#rebuild-image">aibox rebuild-image</a>
+      <strong>Configuration</strong>
+      <a href="#config">.aibox.toml</a>
+      <a href="#user-config">User config</a>
+      <strong>Guides</strong>
+      <a href="#git">Git access</a>
+      <a href="#templates">Templates</a>
+      <a href="#browser">Browser testing</a>
+      <a href="#mounts">Mounts and volumes</a>
+      <a href="#image">What's in the image</a>
+      <strong>Detail</strong>
+      <a href="#security">Security model</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+      <a href="#limitations">Limitations</a>
+    </nav>
+  </aside>
+
+  <article>
+
+    <section id="top">
+      <p class="eyebrow">Documentation</p>
+      <h2>aibox reference</h2>
+      <p class="lede">aibox launches a disposable Docker container from any project directory, for running AI coding agents where they can edit your files but not reach your credentials.</p>
+    </section>
+
+    <section id="requirements">
+      <h2>Requirements</h2>
+      <ul>
+        <li><strong>Python 3.11+</strong> — aibox uses <code>tomllib</code> from the standard library.</li>
+        <li><strong>Docker installed and running.</strong> Verify with <code>docker version</code>.</li>
+        <li><strong>macOS, Linux or Windows.</strong> The container is always Linux.</li>
+      </ul>
+
+      <h3>Platform notes</h3>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Platform</th><th>Docker</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>macOS</td><td>Docker Desktop</td><td>Bind-mount ownership is translated for you.</td></tr>
+          <tr><td>Linux</td><td>Docker Engine or Desktop</td><td>The container's <code>dev</code> user is retuned to your host UID/GID at startup, so files you create stay yours.</td></tr>
+          <tr><td>Windows</td><td>Docker Desktop or WSL2</td><td>Docker Desktop is paid for larger commercial use. WSL2 + Docker Engine is a free alternative — run <code>aibox</code> from inside WSL.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>On Linux, Docker Engine only accepts connections from members of the <code>docker</code> group:</p>
+<pre><code><span class="p">$</span> sudo usermod -aG docker $USER   <span class="c"># then log out and back in</span></code></pre>
+      <div class="note"><p><strong>Note:</strong> <code>docker</code> group membership is effectively root-level access on the host. Podman is not currently supported — its rootless UID mapping and <code>tmpcopyup</code> behaviour differ in ways that would silently unmask <code>.git</code>.</p></div>
+    </section>
+
+    <section id="install">
+      <h2>Installation</h2>
+      <p>pipx is recommended for command-line tools — it keeps aibox in its own environment and still puts it on your PATH.</p>
+<pre><code><span class="p">$</span> pipx install git+https://github.com/vincemaina/aibox.git</code></pre>
+      <p>Or from a local clone, in editable mode:</p>
+<pre><code><span class="p">$</span> git clone https://github.com/vincemaina/aibox.git
+<span class="p">$</span> pipx install -e ./aibox</code></pre>
+      <p>Plain pip works too:</p>
+<pre><code><span class="p">$</span> pip install -e .          <span class="c"># runtime only</span>
+<span class="p">$</span> pip install -e ".[dev]"   <span class="c"># with pytest</span></code></pre>
+      <p>Check it with <code>aibox --version</code>.</p>
+    </section>
+
+    <section id="quickstart">
+      <h2>Quickstart</h2>
+<pre><code><span class="p">$</span> cd ~/projects/my-app
+<span class="p">$</span> aibox</code></pre>
+      <p>That resolves a stable project ID, builds the image if needed, starts an interactive container with your project bind-mounted at <code>/workspace</code>, applies your Git access mode, and drops you into bash as the <code>dev</code> user. On exit the container is removed and the volumes remain.</p>
+    </section>
+
+    <section id="commands">
+      <h2>Commands</h2>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>aibox</code></td><td>Same as <code>aibox run</code>.</td></tr>
+          <tr><td><code>aibox run</code></td><td>Start an interactive container for this project.</td></tr>
+          <tr><td><code>aibox init</code></td><td>Seed this project from your configured template(s).</td></tr>
+          <tr><td><code>aibox setup</code></td><td>Configure your templates interactively. Runs automatically on first use.</td></tr>
+          <tr><td><code>aibox info</code></td><td>Print project paths, IDs, image, container and volume names.</td></tr>
+          <tr><td><code>aibox remove-volume</code></td><td>Delete this project's four persistent volumes.</td></tr>
+          <tr><td><code>aibox rebuild-image</code></td><td>Rebuild <code>aibox-default:latest</code>.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Global flags: <code>--version</code> prints the version, <code>--help</code> works on the top level and on every subcommand.</p>
+    </section>
+
+    <section id="run">
+      <h2>aibox run</h2>
+      <p>Starts the container. All flags are optional and compose with <code>.aibox.toml</code>.</p>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Flag</th><th>Argument</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-p</code>, <code>--port</code></td><td><code>HOST:CONTAINER</code></td><td>Publish a port. Repeatable.</td></tr>
+          <tr><td><code>-e</code>, <code>--env</code></td><td><code>KEY=VALUE</code></td><td>Set an environment variable. Repeatable. Wins over aibox's own defaults.</td></tr>
+          <tr><td><code>--env-file</code></td><td><code>PATH</code></td><td>Pass an env file to Docker. Repeatable.</td></tr>
+          <tr><td><code>--shell</code></td><td><code>PATH</code></td><td>Command to run instead of <code>/bin/bash</code>.</td></tr>
+          <tr><td><code>--git</code></td><td><code>masked</code> · <code>readonly</code> · <code>commit</code></td><td>How much of the host <code>.git</code> the agent gets. Default <code>commit</code>. See <a href="#git">Git access</a>.</td></tr>
+          <tr><td><code>--docker-arg</code></td><td><code>ARG</code></td><td>Raw passthrough to <code>docker run</code>. Repeatable.</td></tr>
+          <tr><td><code>--user</code></td><td><code>USER</code></td><td>Container user. Defaults to <code>dev</code> on macOS/Windows; on Linux the entrypoint handles the UID match.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="note"><p><strong>Watch out:</strong> when a <code>--docker-arg</code> value itself starts with <code>--</code>, use the <code>=</code> form: <code>--docker-arg=--add-host=host.docker.internal:host-gateway</code>. That's an argparse quirk, not an aibox bug.</p></div>
+    </section>
+
+    <section id="init">
+      <h2>aibox init</h2>
+      <p>Merges your template's <code>workspace/</code> into the current project. This is the only command that writes to your source tree, and it never overwrites without your say-so. See <a href="#templates">Templates</a>.</p>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Flag</th><th>Argument</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--template</code></td><td><code>REF</code></td><td>Git URL or local path. Repeatable. Overrides configured templates.</td></tr>
+          <tr><td><code>--on-conflict</code></td><td><code>ask</code> · <code>skip</code> · <code>replace</code> · <code>keep-both</code></td><td>What to do when a file exists and differs. Default <code>ask</code>.</td></tr>
+          <tr><td><code>--yes</code></td><td>—</td><td>Non-interactive. Same as <code>--on-conflict skip</code>.</td></tr>
+          <tr><td><code>--refresh</code></td><td>—</td><td>Re-clone cached remote templates.</td></tr>
+          <tr><td><code>--dry-run</code></td><td>—</td><td>Report the plan, write nothing.</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="setup">
+      <h2>aibox setup</h2>
+      <p>Walks you through configuring your templates and writes <code>~/.config/aibox/config.toml</code>. It runs <strong>automatically the first time</strong> you use aibox, so you don't have to know the config file exists.</p>
+<pre><code><span class="p">$</span> aibox setup
+
+  Welcome to aibox
+
+  Templates seed every project with your own agent guidance —
+  a CLAUDE.md, your working practices, your skills — so you don't
+  set them up by hand each time.
+
+  Template repo URL or local path (Enter to skip): https://github.com/you/claude-starter
+
+  Fetching…
+    workspace/  3 file(s)  → merged into your projects
+    home/       1 file(s)  → loaded into the container
+  Added.
+
+  Another template (Enter to finish):
+
+  Saved to /home/you/.config/aibox/config.toml</code></pre>
+      <p>It checks the layout as it goes. If a template has neither a <code>workspace/</code> nor a <code>home/</code> directory it would silently do nothing, so aibox says so, shows the expected structure, lists what it found at the top level instead, and links back to this page. You can still choose to use it.</p>
+      <p>Run it again any time to change your templates. It needs a terminal; to configure aibox in a script, write the config file directly.</p>
+    </section>
+
+    <section id="info">
+      <h2>aibox info</h2>
+      <p>Prints everything aibox derived for this directory, without starting anything. Useful for checking which volumes belong to a project before deleting them.</p>
+<pre><code><span class="p">$</span> aibox info
+
+Project path:   /home/you/projects/my-app
+Project ID:     my-app-a1b2c3d4
+Container:      aibox-my-app-a1b2c3d4-20260815-105908-7f21dd
+Image:          aibox-default:latest
+Home volume:    aibox-home-my-app-a1b2c3d4
+Tmp volume:     aibox-tmp-my-app-a1b2c3d4
+Var tmp volume: aibox-var-tmp-my-app-a1b2c3d4
+Opt volume:     aibox-opt-my-app-a1b2c3d4
+Git access:     commit (history visible, agent can commit; hooks + config frozen)</code></pre>
+      <p>The project ID is the folder name plus an 8-character hash of its absolute path, so two folders with the same name never share state, and moving a project gives it a fresh set of volumes.</p>
+    </section>
+
+    <section id="remove-volume">
+      <h2>aibox remove-volume</h2>
+      <p>Deletes the four persistent volumes for the current project only. Other projects are untouched. Prompts unless you pass <code>--force</code>.</p>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody><tr><td><code>--force</code></td><td>Skip the confirmation prompt.</td></tr></tbody>
+      </table>
+      </div>
+      <p>Use it when an agent has made a mess of its own environment, or to reclaim disk. Your project files are not affected — they live on your host, not in the volumes.</p>
+    </section>
+
+    <section id="rebuild-image">
+      <h2>aibox rebuild-image</h2>
+      <p>Rebuilds <code>aibox-default:latest</code>. All projects share this image, so a rebuild affects every box. Run it after changing the Dockerfile, or after upgrading aibox if the image contents changed.</p>
+    </section>
+
+    <section id="config">
+      <h2>Project config: .aibox.toml</h2>
+      <p>Optional, lives in the project root. aibox never creates it for you.</p>
+<pre><code>ports = ["3000:3000", "8000:8000"]
+
+env = ["NODE_ENV=development"]
+
+env_files = [".env"]
+
+shell = "/bin/bash"
+
+<span class="c"># "commit" (default) | "readonly" | "masked"</span>
+git = "commit"
+
+<span class="c"># overrides your user-level list; [] opts this project out</span>
+templates = ["https://github.com/you/claude-starter"]
+
+docker_args = ["--add-host=host.docker.internal:host-gateway"]</code></pre>
+      <p>How CLI flags compose with it:</p>
+      <ul>
+        <li><strong>List fields</strong> (<code>ports</code>, <code>env</code>, <code>env_files</code>, <code>docker_args</code>) — the CLI <em>appends</em> to the config values.</li>
+        <li><strong><code>shell</code> and <code>git</code></strong> — the CLI flag <em>overrides</em> the config.</li>
+        <li><strong><code>templates</code></strong> — replaces the user-level list entirely. <code>[]</code> means "no templates here".</li>
+        <li><strong><code>user</code></strong> — CLI only; there is no config key.</li>
+      </ul>
+      <p>Unknown keys and wrong types are rejected with a single-line error, so a typo like <code>port =</code> tells you rather than being silently ignored.</p>
+    </section>
+
+    <section id="user-config">
+      <h2>User config</h2>
+      <p>Settings that belong to you rather than to a project live in <code>~/.config/aibox/config.toml</code> (or <code>$XDG_CONFIG_HOME/aibox/config.toml</code>, or <code>%APPDATA%\aibox</code> on Windows).</p>
+<pre><code>templates = [
+  "https://github.com/you/claude-starter",
+  "~/dotfiles/aibox-template",
+]</code></pre>
+      <p>Cached template clones and staged seeds go under <code>~/.cache/aibox/</code>.</p>
+    </section>
+
+    <section id="git">
+      <h2>Git access</h2>
+      <p>By default the agent can read your commit history and make commits and branches. An agent that shapes its work into a clear sequence of commits produces something you can review, and reading history tells it the project's conventions.</p>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Mode</th><th>The agent can</th><th>Use when</th></tr></thead>
+        <tbody>
+          <tr><td><code>commit</code> <em>(default)</em></td><td>read history, commit, branch, rebase</td><td>you want the agent to author its own history</td></tr>
+          <tr><td><code>readonly</code></td><td>read history only</td><td>you want it to have context but will commit yourself</td></tr>
+          <tr><td><code>masked</code></td><td>nothing — <code>.git</code> appears empty</td><td>a repo you don't want touched at all</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>What no mode allows</h3>
+      <p>Two things stay locked down even in <code>commit</code> mode, because Git runs them <em>on your machine, as you</em>, the next time you use it:</p>
+      <ul>
+        <li><strong><code>.git/hooks/</code></strong> is covered by an empty tmpfs. The agent can't leave a <code>pre-commit</code> hook that fires when you next commit from your editor.</li>
+        <li><strong><code>.git/config</code></strong> is re-mounted read-only. It can name commands through <code>core.pager</code>, <code>core.sshCommand</code>, <code>filter.*.clean</code>, <code>diff.*.textconv</code> and more.</li>
+      </ul>
+      <p>Both extend to submodule git directories under <code>.git/modules/</code>. The protection is the mount, not file permissions: writes land in throwaway container memory and never reach your disk.</p>
+      <p>The visible side effect is that <code>git config</code> and <code>git remote add</code> fail inside the container. The agent can still write its own <code>~/.gitconfig</code>, which lives on the project's home volume.</p>
+
+      <h3>Commit identity</h3>
+      <p>Your global <code>~/.gitconfig</code> isn't mounted, so when a repo names no identity of its own, commits are attributed to <code>aibox agent &lt;agent@aibox.local&gt;</code>. That also makes sandbox commits obvious in <code>git log</code>. Override it:</p>
+<pre><code><span class="p">$</span> aibox run -e GIT_AUTHOR_NAME="Your Name" -e GIT_AUTHOR_EMAIL=you@example.com</code></pre>
+      <div class="note"><p><strong>Where protection actually lives:</strong> the agent has no credentials and no <code>gh</code>, so it can't push. Keeping shared history safe is the remote's job — use branch protection rules. A bad local commit is recoverable from the remote or the reflog.</p></div>
+    </section>
+
+    <section id="templates">
+      <h2>Templates</h2>
+      <p>If every project of yours wants the same agent guidance, keep it in one template repo and seed from it.</p>
+<pre><code><span class="c"># ~/.config/aibox/config.toml</span>
+templates = [
+  "https://github.com/you/claude-starter",
+  "~/dotfiles/aibox-template",     <span class="c"># local paths work too</span>
+]</code></pre>
+      <p>Templates apply in order, so you can layer a general starter with a language-specific one.</p>
+
+      <h3>Layout</h3>
+      <p>A template has up to two top-level directories, treated very differently:</p>
+<pre><code>your-template/
+├── workspace/          <span class="c">→ merged into your project by `aibox init`</span>
+│   ├── CLAUDE.md
+│   ├── claude-best-practices.md
+│   └── .aibox.toml
+└── home/               <span class="c">→ synced into the container on every `aibox run`</span>
+    └── .claude/skills/</code></pre>
+      <ul>
+        <li><strong><code>workspace/</code></strong> is repo guidance. It gets committed, so collaborators and agents running on your host see it too. Because it's your source tree, <code>aibox init</code> never overwrites without asking and <code>aibox run</code> never touches it.</li>
+        <li><strong><code>home/</code></strong> is your personal agent tooling. It lands on the container's per-project home volume, where an agent picks it up as <code>~/.claude/skills/</code>, and it never appears in your repo. That volume is disposable aibox state, so it refreshes every run without asking.</li>
+      </ul>
+      <p>Both are optional; a template can provide just one.</p>
+
+      <h3>First run, and being offered the import</h3>
+      <p>The first time you use aibox with no user config, it runs <a href="#setup"><code>aibox setup</code></a> for you and asks for a template.</p>
+      <p>After that, when you start a box in a project that doesn't have your template files yet, aibox offers to add them:</p>
+<pre><code>  This project doesn't have your template files yet.
+  3 file(s) would be added. Nothing existing is overwritten.
+  Import them? [Y]es  [n]ot now  [never]:</code></pre>
+      <p><code>not now</code> asks again next time. <code>never</code> records that choice for this project only, in <code>~/.local/state/aibox/projects.json</code> — delete that file to be asked again. The offer never appears when there is nothing new to add, when you have no templates configured, or when there is no terminal, so scripted runs are unaffected.</p>
+
+      <h3>The built-in agent briefing</h3>
+      <p>Every box is seeded with an orientation document at <code>~/.claude/CLAUDE.md</code>, which agents read as user-level memory. There is nothing to configure — it is always present.</p>
+      <p>It exists because an agent's default assumption is that your machine is its machine. Without it, agents waste turns searching for an SSH key you mentioned, retrying <code>git push</code> against a remote they cannot authenticate to, or trying to "fix" a read-only <code>.git/config</code>. The briefing covers:</p>
+      <ul>
+        <li><strong>Where it is</strong> — a disposable container, <code>/workspace</code> as a live mount of one real project, and which paths persist.</li>
+        <li><strong>That your machine is not its machine</strong> — if you say your key is at <code>~/.ssh/id_ed25519</code>, that file genuinely isn't there. It's told to say so plainly rather than hunt for it or ask you to paste a secret.</li>
+        <li><strong>What won't work and why</strong> — <code>git push</code>, <code>gh</code>, <code>git config</code>, <code>.git/hooks</code>, <code>apt-get</code>, including that the Git restrictions are host protections rather than bugs to route around.</li>
+        <li><strong>What it can do</strong> — commit and branch freely, clone public repos, install packages, drive Chromium.</li>
+        <li><strong>Hard rules</strong> — never attempt to escape the sandbox, never modify files outside <code>/workspace</code>, never work on another repository, never push to <code>main</code> or <code>master</code>, and never try to defeat a protection. A blocked action is a boundary to report, not an obstacle to work around.</li>
+      </ul>
+      <div class="note"><p><strong>Overriding it:</strong> a template that provides its own <code>home/.claude/CLAUDE.md</code> replaces the briefing entirely. If you do that, carry the guidance across.</p></div>
+
+      <h3>Conflicts</h3>
+      <p>New files are created. A file that already exists and <em>matches</em> is reported unchanged and left alone. A file that exists and <em>differs</em> is a conflict:</p>
+<pre><code>  CLAUDE.md already exists and differs.
+    [k] keep mine  [r] replace  [b] keep both  [d] diff &gt;</code></pre>
+      <p><code>keep both</code> writes the template's copy as <code>CLAUDE.aibox.md</code> so you can merge by hand. When stdin isn't a terminal, aibox keeps your files and says so rather than hanging on a prompt nobody can answer.</p>
+      <p>Files you choose to keep are reported again next time, because they still differ from the template. Use <code>--yes</code> if you'd rather not hear about it.</p>
+      <div class="note"><p><strong>Templates are a trust boundary.</strong> A template can carry a <code>.claude/settings.json</code> with hooks, which run in your host agent sessions once committed. Fine for your own template repo; think twice about someone else's.</p></div>
+    </section>
+
+    <section id="browser">
+      <h2>Browser testing</h2>
+      <p>An agent can check its own front-end work by driving a real browser and looking at the result.</p>
+      <p>The image carries Chromium's system libraries — the part that needs root, and therefore can't be installed from inside the container. The browser itself installs on demand:</p>
+<pre><code><span class="p">$</span> npx playwright install chromium   <span class="c"># once per project</span>
+<span class="p">$</span> npm install playwright</code></pre>
+      <p>Then the loop is: navigate, screenshot into <code>/workspace</code>, read the image back.</p>
+<pre><code>const { chromium } = require('playwright');
+const browser = await chromium.launch();          <span class="c">// headless</span>
+const page = await browser.newPage();
+await page.goto('http://localhost:3000');
+await page.screenshot({ path: 'screenshot.png' });</code></pre>
+      <p><strong>No GUI is involved, and none is needed.</strong> Agents see by reading image files. To look at the app yourself, publish its port with <code>ports = ["3000:3000"]</code> and open it in your own browser.</p>
+      <ul>
+        <li>Browsers cache to <code>~/.cache/ms-playwright</code> on the project's home volume, so the download happens once per project.</li>
+        <li>Chromium only. Firefox and WebKit need their own system libraries, which aren't installed.</li>
+        <li>Heavy pages can exhaust Docker's default 64&nbsp;MB <code>/dev/shm</code>. Playwright already passes <code>--disable-dev-shm-usage</code>; if you still see crashes, add <code>docker_args = ["--shm-size=1g"]</code>.</li>
+      </ul>
+    </section>
+
+    <section id="mounts">
+      <h2>Mounts and volumes</h2>
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Host</th><th>Container</th><th>Kind</th></tr></thead>
+        <tbody>
+          <tr><td>current directory</td><td><code>/workspace</code></td><td>bind mount, live</td></tr>
+          <tr><td><code>aibox-home-{id}</code></td><td><code>/home/dev</code></td><td>named volume</td></tr>
+          <tr><td><code>aibox-tmp-{id}</code></td><td><code>/tmp</code></td><td>named volume</td></tr>
+          <tr><td><code>aibox-var-tmp-{id}</code></td><td><code>/var/tmp</code></td><td>named volume</td></tr>
+          <tr><td><code>aibox-opt-{id}</code></td><td><code>/opt</code></td><td>named volume</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p><strong>What persists:</strong> those four volumes. Agent config and memory, shell history, npm globals, and anything installed into <code>/opt</code>.</p>
+      <p><strong>What doesn't:</strong> everything else. The container runs with <code>--rm</code>, so changes to <code>/etc</code>, <code>/usr</code> and <code>/lib</code> vanish on exit. Persistent system changes belong in the Dockerfile.</p>
+    </section>
+
+    <section id="image">
+      <h2>What's in the image</h2>
+      <p>Base <code>python:3.12-slim</code> (Debian 13), with a non-root <code>dev</code> user.</p>
+      <ul>
+        <li><strong>Node.js</strong> from the official distribution, pinned by the <code>NODE_VERSION</code> build arg and checksum-verified. Debian ships v20; Claude Code needs <code>node &gt;=22</code>.</li>
+        <li><strong>Chromium system libraries</strong> via Playwright's own <code>install-deps</code>, pinned by <code>PLAYWRIGHT_VERSION</code>.</li>
+        <li><strong>Tools:</strong> bash, curl, git, jq, ripgrep, fd-find, vim, nano, unzip, xz-utils, build-essential, gosu.</li>
+        <li><strong>Not installed:</strong> the GitHub CLI (<code>gh</code>), and no credentials of any kind.</li>
+      </ul>
+      <p><code>git</code> is present because agents legitimately need it — cloning public repos, installing agent plugins and marketplaces. Safety comes from the absent credentials and the frozen Git config, not from withholding the binary.</p>
+    </section>
+
+    <section id="security">
+      <h2>Security model</h2>
+      <p>What aibox guarantees:</p>
+      <ul>
+        <li><strong>No host home mount.</strong> <code>~/.ssh</code>, <code>~/.aws</code>, <code>~/.dbt</code>, <code>profiles.yml</code>, warehouse credentials, GitHub tokens — none are reachable.</li>
+        <li><strong>No Docker socket.</strong> The container can't talk to the daemon running it.</li>
+        <li><strong>No host code execution.</strong> <code>.git/hooks</code> and <code>.git/config</code> are frozen in every Git mode.</li>
+        <li><strong>Non-root user</strong> matched to your host UID and GID.</li>
+        <li><strong>Writes confined to the project.</strong> Only <code>/workspace</code> maps to your filesystem.</li>
+      </ul>
+      <p>What it explicitly does <em>not</em> protect against:</p>
+      <ul>
+        <li><strong>Anything inside <code>/workspace</code>.</strong> The agent can delete or rewrite your project files. That's the job you gave it.</li>
+        <li><strong>Local Git history under <code>--git commit</code>.</strong> Resets and rebases are intended behaviour; the remote plus branch protection is the safety net.</li>
+        <li><strong>Network egress.</strong> Outbound traffic is currently unrestricted.</li>
+      </ul>
+      <p>Report anything that breaks the guarantees above through <a href="https://github.com/vincemaina/aibox/security/advisories/new">GitHub security advisories</a>.</p>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+
+      <h3>"Permission denied connecting to the Docker daemon"</h3>
+      <p>On Linux you're not in the <code>docker</code> group. Run <code>sudo usermod -aG docker $USER</code>, then start a new login session — a new terminal tab is not enough, the group set is fixed at login.</p>
+
+      <h3>"Docker is not running"</h3>
+      <p>Start it: <code>sudo systemctl start docker</code> on Linux, or launch Docker Desktop.</p>
+
+      <h3>A command works in the container but not under <code>bash -l</code></h3>
+      <p>Should be fixed — <code>/etc/profile.d/aibox-path.sh</code> restores the user-local tool paths that <code>/etc/profile</code> would otherwise overwrite. If you see it, rebuild with <code>aibox rebuild-image</code>.</p>
+
+      <h3>Chromium fails with "Target page, context or browser has been closed"</h3>
+      <p>The real error is usually a missing shared library, buried in the browser log. Rebuild the image — Chromium's system libraries were added in a later version.</p>
+
+      <h3>Changes to the Dockerfile or entrypoint have no effect</h3>
+      <p>Run <code>aibox rebuild-image</code>. Existing images are never rebuilt automatically.</p>
+
+      <h3>The agent lost everything it installed</h3>
+      <p>Only <code>/home/dev</code>, <code>/tmp</code>, <code>/var/tmp</code> and <code>/opt</code> persist. Anything installed elsewhere goes away with the container.</p>
+    </section>
+
+    <section id="limitations">
+      <h2>Limitations</h2>
+      <ul>
+        <li><strong>Podman is not supported.</strong> Rootless UID mapping, SELinux labelling and <code>tmpcopyup</code> all differ from Docker in ways that would silently unmask <code>.git</code>.</li>
+        <li><strong>Egress is unrestricted.</strong> A compromised agent can reach the network freely. A proxy-based allowlist is on the roadmap.</li>
+        <li><strong>One shared image.</strong> Every project uses <code>aibox-default:latest</code>; custom images per project aren't supported yet.</li>
+        <li><strong>No Docker Compose.</strong> Projects needing sidecar services aren't covered.</li>
+        <li><strong>Symlinked project directories</strong> are untested across platforms, particularly Windows junction points and WSL-to-Windows paths.</li>
+        <li><strong>Linked worktrees.</strong> When <code>.git</code> is a file rather than a directory, the real git dir lives outside the project and isn't mounted, so Git access modes don't apply.</li>
+      </ul>
+    </section>
+
+  </article>
+</div>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <span>aibox — MIT licensed. Built by <a href="https://github.com/vincemaina">Vince Maina</a>.</span>
+    <nav>
+      <a href="./">Home</a>
+      <a href="https://github.com/vincemaina/aibox">GitHub</a>
+      <a href="https://github.com/vincemaina/aibox/blob/main/SECURITY.md">Security</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

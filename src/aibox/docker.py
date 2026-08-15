@@ -21,6 +21,27 @@ class DockerError(RuntimeError):
     """User-facing Docker failure. Caught at the CLI boundary."""
 
 
+#: Where staged template ``home/`` content is bind-mounted for the entrypoint to
+#: copy into ``/home/dev``. Defined here rather than in ``templates`` because
+#: that module imports ``config``, which imports this one.
+SEED_MOUNT = "/run/aibox-seed"
+
+#: How much of the host ``.git`` the container gets. See :func:`_git_mount_args`.
+GIT_MODES = ("masked", "readonly", "commit")
+DEFAULT_GIT_MODE = "commit"
+
+#: Author/committer used when the repo itself names no identity. The host's
+#: global ``~/.gitconfig`` isn't mounted, so without these ``git commit`` fails
+#: with "please tell me who you are". A distinct identity also makes it obvious
+#: in ``git log`` which commits came from the sandbox.
+GIT_IDENTITY = {
+    "GIT_AUTHOR_NAME": "aibox agent",
+    "GIT_AUTHOR_EMAIL": "agent@aibox.local",
+    "GIT_COMMITTER_NAME": "aibox agent",
+    "GIT_COMMITTER_EMAIL": "agent@aibox.local",
+}
+
+
 @dataclass(frozen=True)
 class RunSpec:
     identity: ProjectIdentity
@@ -30,7 +51,9 @@ class RunSpec:
     docker_args: list[str]
     shell: str
     user: str | None
-    mask_git: bool
+    git_mode: str
+    #: Staged template ``home/`` content to seed ``/home/dev`` with, if any.
+    home_seed: Path | None = None
 
 
 def _host_uid_gid() -> tuple[int, int]:
@@ -53,6 +76,50 @@ def _terminal_env_args() -> list[str]:
         value = os.environ.get(var)
         if value:
             args += ["-e", f"{var}={value}"]
+    return args
+
+
+def _git_mount_args(spec: RunSpec) -> list[str]:
+    """Mounts controlling the agent's access to the host ``.git``.
+
+    ``.git`` arrives inside the container for free as part of the ``/workspace``
+    bind mount, so every mode here is about layering something on top of it:
+
+    - ``masked``   — tmpfs over ``.git``. The agent sees an empty git dir and can
+      neither read history nor commit. This was the original default.
+    - ``readonly`` — bind ``.git`` over itself read-only. History is readable,
+      nothing in it can be changed.
+    - ``commit``   — ``.git`` stays writable so the agent can commit, branch, and
+      rebase. Two things are held back, because both are executed by *host* git
+      the next time you run it and would otherwise be a route out of the
+      sandbox: ``hooks/`` is replaced with a root-owned tmpfs, and ``config`` is
+      re-bound read-only (it can name commands via ``core.pager``,
+      ``core.sshCommand``, ``filter.*``, and friends). Applied to submodule git
+      dirs too. Container-local git config still works via ``~/.gitconfig``,
+      which lives on the per-project home volume.
+    """
+    if not spec.identity.git_dirs:
+        return []
+
+    if spec.git_mode == "masked":
+        return ["--mount", "type=tmpfs,target=/workspace/.git"]
+
+    def target(path: Path) -> str:
+        return f"/workspace/{path.relative_to(spec.identity.cwd).as_posix()}"
+
+    if spec.git_mode == "readonly":
+        root = spec.identity.git_dirs[0]
+        return ["--mount", f"type=bind,source={root},target={target(root)},readonly"]
+
+    args: list[str] = []
+    for git_dir in spec.identity.git_dirs:
+        args += ["--mount", f"type=tmpfs,target={target(git_dir / 'hooks')}"]
+        config = git_dir / "config"
+        if config.is_file():
+            args += [
+                "--mount",
+                f"type=bind,source={config},target={target(config)},readonly",
+            ]
     return args
 
 
@@ -123,7 +190,7 @@ def build_image(name: str, dockerfile_path: Path, context_dir: Path) -> None:
 
 
 def _with_bundled_dockerfile(action):
-    dockerfile_ref = files("aibox.templates").joinpath("Dockerfile")
+    dockerfile_ref = files("aibox.image").joinpath("Dockerfile")
     with as_file(dockerfile_ref) as path:
         action(path)
 
@@ -172,8 +239,14 @@ def build_run_args(spec: RunSpec) -> list[str]:
         "--mount", f"type=volume,source={spec.identity.volumes['opt']},target=/opt",
     ]
 
-    if spec.mask_git:
-        args += ["--mount", "type=tmpfs,target=/workspace/.git"]
+    args += _git_mount_args(spec)
+
+    # Read-only: the entrypoint copies out of it, nothing writes back into it.
+    if spec.home_seed is not None:
+        args += [
+            "--mount",
+            f"type=bind,source={spec.home_seed},target={SEED_MOUNT},readonly",
+        ]
 
     # The entrypoint uses these to retune the in-container `dev` user when running as root.
     uid, gid = _host_uid_gid()
@@ -181,6 +254,12 @@ def build_run_args(spec: RunSpec) -> list[str]:
 
     # Forward host terminal colour capability (added before user env so --env wins).
     args += _terminal_env_args()
+
+    # Fallback commit identity. Like the terminal vars, these go before the
+    # user's own -e flags so `--env GIT_AUTHOR_NAME=...` still wins.
+    if spec.git_mode == "commit":
+        for key, value in GIT_IDENTITY.items():
+            args += ["-e", f"{key}={value}"]
 
     for port in spec.ports:
         args += ["-p", port]

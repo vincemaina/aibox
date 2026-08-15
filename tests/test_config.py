@@ -20,6 +20,7 @@ def make_namespace(**overrides) -> argparse.Namespace:
         shell=None,
         docker_arg=[],
         user=None,
+        git=None,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
@@ -69,6 +70,16 @@ class TestLoad:
         with pytest.raises(ConfigError, match="parse error"):
             load(tmp_path)
 
+    @pytest.mark.parametrize("mode", ["masked", "readonly", "commit"])
+    def test_loads_each_git_mode(self, tmp_path, mode):
+        (tmp_path / CONFIG_FILENAME).write_text(f'git = "{mode}"\n')
+        assert load(tmp_path).git == mode
+
+    def test_invalid_git_mode_raises(self, tmp_path):
+        (tmp_path / CONFIG_FILENAME).write_text('git = "readwrite"\n')
+        with pytest.raises(ConfigError, match="'git' must be one of"):
+            load(tmp_path)
+
 
 class TestMerge:
     def test_cli_appends_to_config_lists(self, identity):
@@ -110,8 +121,14 @@ class TestMerge:
         spec = merge(ProjectConfig(), make_namespace(user=None), identity)
         assert spec.user is None
 
-    def test_mask_git_follows_identity(self, tmp_path):
-        (tmp_path / ".git").mkdir()
-        ident = resolve(tmp_path)
-        spec = merge(ProjectConfig(), make_namespace(), ident)
-        assert spec.mask_git is True
+    def test_git_mode_defaults_to_commit(self, identity):
+        spec = merge(ProjectConfig(), make_namespace(), identity)
+        assert spec.git_mode == "commit"
+
+    def test_config_git_wins_when_no_cli_flag(self, identity):
+        spec = merge(ProjectConfig(git="masked"), make_namespace(), identity)
+        assert spec.git_mode == "masked"
+
+    def test_cli_git_overrides_config(self, identity):
+        spec = merge(ProjectConfig(git="masked"), make_namespace(git="readonly"), identity)
+        assert spec.git_mode == "readonly"

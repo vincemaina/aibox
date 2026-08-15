@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vincemaina.github.io/aibox/sitemap.xml

@@ -43,6 +43,24 @@ RUN set -eux; \
     node --version; \
     npm --version
 
+# Chromium's shared libraries, so agents can drive Playwright and screenshot
+# their own UI work. Only the system deps are installed here, not the browser
+# binaries: the agent runs `npx playwright install chromium` itself, which needs
+# no root and lands in ~/.cache/ms-playwright on the persistent home volume.
+#
+# This has to happen in the image. Installing the libs needs apt (root), and the
+# container drops to `dev` with no sudo, so `playwright install --with-deps` from
+# inside is impossible. Without them Chromium dies on launch with a misleading
+# "Target page, context or browser has been closed" and the real cause
+# (libglib-2.0.so.0: cannot open shared object file) buried in the browser log.
+#
+# Let Playwright resolve the package names rather than hardcoding them: Debian 13
+# renamed most of these in the t64 ABI transition (libasound2 -> libasound2t64,
+# and so on), so a hand-written apt list would rot on the next base image bump.
+ARG PLAYWRIGHT_VERSION=1.56.0
+RUN npx --yes "playwright@${PLAYWRIGHT_VERSION}" install-deps chromium \
+    && rm -rf /var/lib/apt/lists/* /root/.npm
+
 # Non-root dev user. UID/GID may be retuned at container start by entrypoint.sh
 # to match the invoking host user.
 RUN useradd -m -s /bin/bash dev \

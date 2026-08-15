@@ -14,6 +14,19 @@
 
 set -euo pipefail
 
+# Copy any staged template `home/` content into /home/dev. aibox bind-mounts it
+# read-only at /run/aibox-seed; the template is the source of truth, so this
+# overwrites its own files each run but leaves the rest of /home/dev alone.
+#
+# Called from both branches below on purpose. On Linux we start as root and drop
+# via gosu; on macOS/Windows the container starts as `dev` directly. Seeding only
+# the root branch would silently do nothing on macOS.
+seed_home() {
+    if [ -d /run/aibox-seed ] && [ -n "$(ls -A /run/aibox-seed 2>/dev/null)" ]; then
+        cp -a /run/aibox-seed/. /home/dev/ 2>/dev/null || true
+    fi
+}
+
 if [ "$(id -u)" = "0" ]; then
     HOST_UID="${HOST_UID:-1000}"
     HOST_GID="${HOST_GID:-$HOST_UID}"
@@ -24,10 +37,12 @@ if [ "$(id -u)" = "0" ]; then
         usermod -o -u "$HOST_UID" -g "$HOST_GID" dev >/dev/null 2>&1 || true
     fi
 
+    seed_home
     chown -R "$HOST_UID:$HOST_GID" /home/dev /opt >/dev/null 2>&1 || true
 
     exec gosu dev "$@"
 fi
 
 # Already non-root (e.g. user passed --user explicitly). Just exec.
+seed_home
 exec "$@"

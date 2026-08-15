@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>aibox — Disposable Docker Sandboxes for AI Coding Agents</title>
+<meta name="description" content="aibox runs Claude Code and other AI coding agents in a throwaway Docker container. The agent edits your project; it never sees your SSH keys, cloud credentials, or Docker socket.">
+<link rel="canonical" href="https://vincemaina.github.io/aibox/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="aibox">
+<meta property="og:title" content="aibox — Disposable Docker Sandboxes for AI Coding Agents">
+<meta property="og:description" content="Give an AI coding agent your project, not your machine. One command starts a throwaway container with no access to your credentials.">
+<meta property="og:url" content="https://vincemaina.github.io/aibox/">
+<meta property="og:image" content="https://vincemaina.github.io/aibox/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="aibox — disposable Docker containers for AI coding agents">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="aibox — Disposable Docker Sandboxes for AI Coding Agents">
+<meta name="twitter:description" content="Give an AI coding agent your project, not your machine.">
+<meta name="twitter:image" content="https://vincemaina.github.io/aibox/og-image.png">
+
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101419" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='5' y='5' width='22' height='22' rx='4' fill='none' stroke='%230b6e4f' stroke-width='4'/></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "aibox",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "description": "A command-line tool that runs AI coding agents such as Claude Code inside disposable Docker containers, isolated from host credentials and the Docker socket.",
+  "url": "https://vincemaina.github.io/aibox/",
+  "downloadUrl": "https://github.com/vincemaina/aibox",
+  "codeRepository": "https://github.com/vincemaina/aibox",
+  "programmingLanguage": "Python",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": { "@type": "Person", "name": "Vince Maina" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can the AI agent see my SSH keys or cloud credentials?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Your home directory is never mounted. The container sees only your project at /workspace plus four project-specific Docker volumes, so ~/.ssh, ~/.aws, dbt profiles and GitHub tokens are unreachable." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can the agent commit to my repository?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. By default the agent can read history, commit, branch and rebase, so it can shape its work into a reviewable history. It cannot push, because no credentials and no GitHub CLI are present in the container." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can the agent break out of the container?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The Docker socket is never mounted, the container runs as a non-root user matched to your host UID, and the two Git paths that would make host-side Git execute code — .git/hooks and .git/config — are held read-only in every mode." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does aibox work on Linux, macOS and Windows?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It needs Python 3.11 or newer and a running Docker daemon. On Linux an entrypoint script matches the container user to your host UID and GID so files you create stay owned by you." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can an AI agent test the web app it just built?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Chromium's system libraries ship in the image, so an agent can install Playwright, drive a headless browser, screenshot the page and read the image back to check its own work." }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="wordmark" href="./">aibox</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="documentation.html">Docs</a>
+      <a href="https://github.com/vincemaina/aibox">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="wrap hero">
+  <p class="eyebrow">Disposable Docker containers for AI coding agents</p>
+  <h1>Give it your project.<em>Not your machine.</em></h1>
+  <p class="hero__sub">
+    <strong>aibox</strong> runs Claude Code — or any coding agent — inside a throwaway
+    container. It edits your files for real. It never sees your credentials.
+  </p>
+  <div class="actions">
+    <a class="btn" href="#install">Install aibox</a>
+    <a class="btn btn--ghost" href="documentation.html">Read the documentation</a>
+  </div>
+
+  <!-- Signature element: the boundary itself, as a manifest. -->
+  <div class="ledger">
+    <div class="ledger__head">
+      <span>Visibility manifest</span>
+      <span>aibox run</span>
+    </div>
+
+    <div class="ledger__col ledger__col--in">
+      <h2>Inside the box</h2>
+      <ul>
+        <li><span>/workspace</span><span class="tag tag--allow">live, read / write</span></li>
+        <li><span>.git history</span><span class="tag tag--allow">read + commit</span></li>
+        <li><span>/home/dev</span><span class="tag tag--allow">persists</span></li>
+        <li><span>node · git · ripgrep</span><span class="tag tag--allow">installed</span></li>
+        <li><span>chromium libs</span><span class="tag tag--allow">installed</span></li>
+      </ul>
+    </div>
+
+    <div class="ledger__spine"><span>container boundary</span></div>
+
+    <div class="ledger__col ledger__col--out">
+      <h2>Stays on your machine</h2>
+      <ul>
+        <li><span>~/.ssh</span><span class="tag tag--deny">never mounted</span></li>
+        <li><span>~/.aws · ~/.dbt</span><span class="tag tag--deny">never mounted</span></li>
+        <li><span>gh tokens</span><span class="tag tag--deny">not installed</span></li>
+        <li><span>/var/run/docker.sock</span><span class="tag tag--deny">never mounted</span></li>
+        <li><span>.git/hooks · config</span><span class="tag tag--deny">frozen</span></li>
+      </ul>
+    </div>
+
+    <p class="ledger__foot">
+      Exit the container and it's gone — <code>--rm</code> by default. Your project edits
+      stay, because <code>/workspace</code> is your real directory.
+    </p>
+  </div>
+</section>
+
+<section class="band" id="why">
+  <div class="wrap">
+    <p class="eyebrow">The problem</p>
+    <h2>An agent with your shell has your whole machine</h2>
+    <p class="lede">
+      Coding agents are most useful when they can run commands. But the same shell that runs
+      your test suite can read <code>~/.ssh/id_ed25519</code>, query your warehouse with your
+      dbt profile, or push to <code>main</code>. Most sandboxes fix this by taking away the
+      tools that make the agent useful. aibox draws the line somewhere better: the agent gets
+      a full development environment and your real project files, and none of your identity.
+    </p>
+  </div>
+</section>
+
+<section class="band" id="features">
+  <div class="wrap">
+    <p class="eyebrow">What you get</p>
+    <h2>Features</h2>
+
+    <div class="specs">
+      <div class="spec">
+        <h3>Credential isolation</h3>
+        <p>Your home directory is never mounted. No SSH keys, cloud credentials, dbt profiles, or <code>~/.gitconfig</code>. The container sees your project and four of its own volumes — nothing else.</p>
+      </div>
+      <div class="spec">
+        <h3>Real Git, no remotes</h3>
+        <p>The agent reads history, commits, and branches, so its work arrives as a reviewable sequence rather than one undifferentiated diff. It can't push: there's no <code>gh</code> and no credentials.</p>
+        <p><code>--git commit</code> is the default. <code>readonly</code> and <code>masked</code> tighten it.</p>
+      </div>
+      <div class="spec">
+        <h3>No route back to the host</h3>
+        <p>The Docker socket is never mounted. <code>.git/hooks</code> and <code>.git/config</code> stay read-only in every mode, so the agent can't leave behind a hook or a <code>core.pager</code> that your Git would run later.</p>
+      </div>
+      <div class="spec">
+        <h3>Browser testing built in</h3>
+        <p>Chromium's system libraries are in the image. An agent installs Playwright, drives a headless browser, screenshots the page and reads the PNG back — so it can check its own UI work instead of guessing.</p>
+      </div>
+      <div class="spec">
+        <h3>Agents arrive oriented</h3>
+        <p>Every box seeds a briefing the agent reads as memory: you're in a container, this isn't the user's machine, here's why <code>git push</code> and <code>~/.ssh</code> aren't available — and a hard rule never to work around a protection or touch anything outside the mount.</p>
+      </div>
+      <div class="spec">
+        <h3>Templates for your practices</h3>
+        <p>Keep your <code>CLAUDE.md</code>, working practices, and skills in one template repo. <code>aibox init</code> merges them into a project without overwriting anything, and personal skills can load into the container instead of your repo.</p>
+      </div>
+      <div class="spec">
+        <h3>Disposable, but not forgetful</h3>
+        <p>The container is removed on exit. <code>/home/dev</code>, <code>/tmp</code>, <code>/var/tmp</code> and <code>/opt</code> are per-project volumes, so npm globals, shell history and agent config survive.</p>
+      </div>
+      <div class="spec">
+        <h3>Owned by you, not root</h3>
+        <p>The container user is retuned to your host UID and GID at startup, so files the agent creates in your project belong to you. No <code>sudo chown</code> afterwards.</p>
+      </div>
+      <div class="spec">
+        <h3>Nothing to install but the CLI</h3>
+        <p>Pure Python standard library, shelling out to the <code>docker</code> CLI. No SDKs, no daemon, no account. Roughly a thousand lines you can read in an afternoon.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="install">
+  <div class="wrap">
+    <p class="eyebrow">Getting started</p>
+    <h2>Up and running</h2>
+    <p class="lede">You need Docker running and Python 3.11 or newer.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Install the CLI</h3>
+        <p>pipx keeps it in its own environment and puts <code>aibox</code> on your PATH.</p>
+<pre><code><span class="p">$</span> pipx install git+https://github.com/vincemaina/aibox.git</code></pre>
+      </div>
+      <div class="step">
+        <h3>Start a box in any project</h3>
+        <p>First run builds the image. After that it starts in about a second.</p>
+<pre><code><span class="p">$</span> cd ~/projects/my-app
+<span class="p">$</span> aibox</code></pre>
+      </div>
+      <div class="step">
+        <h3>Run your agent inside it</h3>
+        <p>You're at a shell in <code>/workspace</code> as a non-root user. Install the agent once — it persists on the project's home volume.</p>
+<pre><code><span class="p">$</span> npm install -g @anthropic-ai/claude-code
+<span class="p">$</span> claude</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band faq" id="faq">
+  <div class="wrap">
+    <p class="eyebrow">Questions</p>
+    <h2>Common questions</h2>
+
+    <details>
+      <summary><span>Can the agent see my SSH keys or cloud credentials?</span></summary>
+      <p>No. Your home directory is never mounted. The container sees your project at <code>/workspace</code> plus four project-specific Docker volumes, so <code>~/.ssh</code>, <code>~/.aws</code>, dbt profiles and GitHub tokens are simply not reachable from inside.</p>
+    </details>
+    <details>
+      <summary><span>Can the agent commit to my repository?</span></summary>
+      <p>Yes, and that's the default. It can read history, commit, branch and rebase, so it can arrange its work into a history you can review. It cannot push — there are no credentials and no GitHub CLI in the container. Protecting shared history is the remote's job, via branch protection rules.</p>
+    </details>
+    <details>
+      <summary><span>Can the agent break out of the container?</span></summary>
+      <p>The Docker socket is never mounted, so it can't talk to the daemon that runs it. It runs as a non-root user. And the two Git paths that would cause code to run on your machine later — <code>.git/hooks</code> and <code>.git/config</code> — are held read-only in every mode, including when the agent is allowed to commit.</p>
+    </details>
+    <details>
+      <summary><span>Does it work on Linux, macOS and Windows?</span></summary>
+      <p>Yes. On Linux, Docker Engine needs your user in the <code>docker</code> group, and an entrypoint script matches the container user to your host UID and GID so files stay owned by you. On Windows use Docker Desktop or WSL2. Podman is not supported yet.</p>
+    </details>
+    <details>
+      <summary><span>Can an agent test the web app it just built?</span></summary>
+      <p>Yes. Chromium's system libraries ship in the image — the part that needs root and so can't be installed from inside. The agent installs Playwright, screenshots the page into <code>/workspace</code>, and reads the image back. No GUI is involved; agents see by reading image files.</p>
+    </details>
+    <details>
+      <summary><span>Is this just <code>docker run</code> with extra steps?</span></summary>
+      <p>It's the specific set of flags you'd otherwise get wrong. Stable per-project identity and volumes, host UID matching, terminal colour passthrough, and the Git protections above. You could write the command by hand; you'd write it differently in every project.</p>
+    </details>
+  </div>
+</section>
+
+<section class="band" id="next">
+  <div class="wrap">
+    <p class="eyebrow">Reference</p>
+    <h2>Every command, every flag</h2>
+    <p class="lede">Full documentation covers installation, all five commands and their arguments, <code>.aibox.toml</code>, user-level config, Git access modes, templates, browser testing, the security model, and troubleshooting.</p>
+    <div class="actions">
+      <a class="btn" href="documentation.html">Open the documentation</a>
+      <a class="btn btn--ghost" href="https://github.com/vincemaina/aibox">Source on GitHub</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <span>aibox — MIT licensed. Built by <a href="https://github.com/vincemaina">Vince Maina</a>.</span>
+    <nav>
+      <a href="documentation.html">Documentation</a>
+      <a href="https://github.com/vincemaina/aibox">GitHub</a>
+      <a href="https://github.com/vincemaina/aibox/blob/main/SECURITY.md">Security</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

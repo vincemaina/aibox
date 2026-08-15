@@ -13,6 +13,15 @@ def identity(tmp_path):
     return resolve(tmp_path)
 
 
+@pytest.fixture
+def git_identity(tmp_path):
+    """A project that has a real (if minimal) .git directory on disk."""
+    git_dir = tmp_path / ".git"
+    (git_dir / "hooks").mkdir(parents=True)
+    (git_dir / "config").write_text("[core]\n\trepositoryformatversion = 0\n")
+    return resolve(tmp_path)
+
+
 def make_spec(identity, **overrides) -> RunSpec:
     defaults = dict(
         identity=identity,
@@ -22,10 +31,14 @@ def make_spec(identity, **overrides) -> RunSpec:
         docker_args=[],
         shell="/bin/bash",
         user=None,
-        mask_git=False,
+        git_mode="masked",
     )
     defaults.update(overrides)
     return RunSpec(**defaults)
+
+
+def mounts(args: list[str]) -> list[str]:
+    return [args[i + 1] for i in range(len(args) - 1) if args[i] == "--mount"]
 
 
 def _host_uid_gid() -> tuple[int, int]:
@@ -72,14 +85,11 @@ class TestBuildRunArgs:
         idx = args.index("--user")
         assert args[idx + 1] == "root"
 
-    def test_mask_git_adds_tmpfs_mount(self, identity):
-        args = build_run_args(make_spec(identity, mask_git=True))
-        tmpfs = [a for a in args if a.startswith("type=tmpfs")]
-        assert tmpfs == ["type=tmpfs,target=/workspace/.git"]
-
-    def test_mask_git_false_omits_tmpfs(self, identity):
-        args = build_run_args(make_spec(identity, mask_git=False))
-        assert not any(a.startswith("type=tmpfs") for a in args)
+    def test_no_git_dir_means_no_git_mounts(self, identity):
+        # tmp_path has no .git, so every mode is a no-op.
+        for mode in docker.GIT_MODES:
+            args = build_run_args(make_spec(identity, git_mode=mode))
+            assert not any(".git" in m for m in mounts(args))
 
     def test_uses_mount_syntax_not_v_flag(self, identity):
         args = build_run_args(make_spec(identity))
@@ -143,6 +153,74 @@ class TestBuildRunArgs:
         args = build_run_args(make_spec(identity, docker_args=extra))
         image_index = args.index(identity.image)
         assert args[image_index - len(extra):image_index] == extra
+
+
+class TestGitModes:
+    def test_masked_hides_whole_git_dir(self, git_identity):
+        args = build_run_args(make_spec(git_identity, git_mode="masked"))
+        git_mounts = [m for m in mounts(args) if ".git" in m]
+        assert git_mounts == ["type=tmpfs,target=/workspace/.git"]
+
+    def test_readonly_binds_git_dir_read_only(self, git_identity):
+        args = build_run_args(make_spec(git_identity, git_mode="readonly"))
+        git_mounts = [m for m in mounts(args) if ".git" in m]
+        assert git_mounts == [
+            f"type=bind,source={git_identity.cwd / '.git'},target=/workspace/.git,readonly"
+        ]
+
+    def test_commit_leaves_git_writable(self, git_identity):
+        # No mount covers .git itself — it stays writable via the /workspace bind.
+        args = build_run_args(make_spec(git_identity, git_mode="commit"))
+        assert not any(m.endswith("target=/workspace/.git") for m in mounts(args))
+
+    def test_commit_masks_hooks(self, git_identity):
+        args = build_run_args(make_spec(git_identity, git_mode="commit"))
+        assert "type=tmpfs,target=/workspace/.git/hooks" in mounts(args)
+
+    def test_commit_freezes_config(self, git_identity):
+        args = build_run_args(make_spec(git_identity, git_mode="commit"))
+        config_path = git_identity.cwd / ".git" / "config"
+        assert (
+            f"type=bind,source={config_path},target=/workspace/.git/config,readonly"
+            in mounts(args)
+        )
+
+    def test_commit_protects_submodule_git_dirs(self, tmp_path):
+        sub = tmp_path / ".git" / "modules" / "vendor" / "lib"
+        sub.mkdir(parents=True)
+        (sub / "config").write_text("[core]\n")
+        (tmp_path / ".git" / "config").write_text("[core]\n")
+        args = build_run_args(make_spec(resolve(tmp_path), git_mode="commit"))
+        got = mounts(args)
+        assert "type=tmpfs,target=/workspace/.git/modules/vendor/lib/hooks" in got
+        assert any(
+            m.endswith("target=/workspace/.git/modules/vendor/lib/config,readonly")
+            for m in got
+        )
+
+    def test_commit_sets_fallback_identity(self, git_identity):
+        args = build_run_args(make_spec(git_identity, git_mode="commit"))
+        for key, value in docker.GIT_IDENTITY.items():
+            assert f"{key}={value}" in args
+
+    @pytest.mark.parametrize("mode", ["masked", "readonly"])
+    def test_identity_only_set_in_commit_mode(self, git_identity, mode):
+        args = build_run_args(make_spec(git_identity, git_mode=mode))
+        assert not any(a.startswith("GIT_AUTHOR_NAME=") for a in args)
+
+    def test_user_env_overrides_fallback_identity(self, git_identity):
+        # User's -e is appended after ours, so Docker's last-wins rule favours theirs.
+        args = build_run_args(
+            make_spec(git_identity, git_mode="commit", env=["GIT_AUTHOR_NAME=Real Person"])
+        )
+        assert args.index("GIT_AUTHOR_NAME=Real Person") > args.index(
+            f"GIT_AUTHOR_NAME={docker.GIT_IDENTITY['GIT_AUTHOR_NAME']}"
+        )
+
+    def test_missing_config_file_is_skipped(self, tmp_path):
+        (tmp_path / ".git" / "hooks").mkdir(parents=True)  # no config file
+        args = build_run_args(make_spec(resolve(tmp_path), git_mode="commit"))
+        assert not any("target=/workspace/.git/config" in m for m in mounts(args))
 
 
 class TestCheckAvailable:

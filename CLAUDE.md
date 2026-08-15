@@ -17,12 +17,9 @@ Always follow the conventions in [`claude-best-practices.md`](./claude-best-prac
 
 ### aibox should deploy these practices into target projects
 
-When aibox prepares a project to run an AI agent inside the container, it should consider seeding the project root with:
+Implemented in phase 10. `aibox init` merges a template's `workspace/` into the project root (`claude-best-practices.md`, `CLAUDE.md`, a starter `.aibox.toml`, skills), and a template's `home/` syncs into the container's `/home/dev` on every `aibox run`.
 
-- `claude-best-practices.md` — so any future Claude instance running in that project inherits the same working practices.
-- A starter `.aibox.toml` (only when explicitly requested via something like `aibox init` — do not create it automatically on `aibox run`).
-
-This is a non-MVP enhancement to keep in mind as the CLI evolves; the MVP should not write files into the host project automatically.
+The rule that governed the design still holds: **`aibox run` never writes to the host project.** Only the explicit `aibox init` touches the user's source tree, and it never overwrites without consent. The `home/` half is exempt because it lands on an aibox-managed Docker volume, not in the repo.
 
 ## Project Overview
 
@@ -30,8 +27,8 @@ This is a non-MVP enhancement to keep in mind as the CLI evolves; the MVP should
 
 **Key security principles:**
 - Containers are disposable; only user state persists in Docker volumes
-- `.git` directory is hidden from containers (masked with tmpfs)
-- `git` IS installed (agents need it to clone public repos and install Claude Code plugins/marketplaces), but the GitHub CLI (`gh`) is not, and no credentials are mounted — so the agent cannot authenticate to or push to remotes
+- The agent may read history and commit locally by default (`--git commit`); `--git readonly` and `--git masked` dial that back. What is never permitted is host-side code execution: `.git/hooks` and `.git/config` are frozen in every mode. See [`plans/phase-9-git-access.md`](./plans/phase-9-git-access.md)
+- `git` IS installed (agents need it to clone public repos and install Claude Code plugins/marketplaces), but the GitHub CLI (`gh`) is not, and no credentials are mounted — so the agent cannot authenticate to or push to remotes. Protecting shared history is the remote's job, via branch protection
 - Host home directory is never mounted; only `/workspace`, `/home/dev`, `/tmp`, `/var/tmp`, `/opt` are visible
 - No Docker socket, SSH keys, cloud credentials, or credential folders are mounted
 
@@ -39,12 +36,15 @@ This is a non-MVP enhancement to keep in mind as the CLI evolves; the MVP should
 
 The implementation uses a `src/` layout with these core modules:
 
-- **`cli.py`**: Main entry point and argument parsing. Handles commands: `aibox`, `aibox run`, `aibox info`, `aibox remove-volume`, `aibox rebuild-image`
+- **`cli.py`**: Main entry point and argument parsing. Handles commands: `aibox`, `aibox run`, `aibox info`, `aibox remove-volume`, `aibox rebuild-image`. `aibox run` takes `--git` alongside the port/env/shell flags
 - **`identity.py`**: Project identity derivation. Creates stable project IDs from folder name + path hash (8-char hash of resolved absolute path)
 - **`docker.py`**: Docker operations. Builds/manages the image, creates/runs containers with proper mounts and volumes
 - **`config.py`**: Project-level configuration. Parses `.aibox.toml` for ports, env vars, env files, custom shell, Docker args
 
-The Dockerfile template lives in `src/aibox/templates/Dockerfile` and is embedded/deployed by the CLI. The default image is `aibox-default:latest`.
+- **`userconfig.py`**: User-level config (`~/.config/aibox/config.toml`, XDG-aware). Currently just `templates`
+- **`templates.py`**: Project templates — resolve a git URL or local path, merge `workspace/` into the project, stage `home/` for the container to seed `/home/dev`
+
+The Dockerfile lives in `src/aibox/image/Dockerfile` and is embedded/deployed by the CLI. The default image is `aibox-default:latest`.
 
 ## Project Structure
 
@@ -55,9 +55,15 @@ src/aibox/
   identity.py      # Project ID derivation
   docker.py        # Docker image/container management
   config.py        # .aibox.toml parsing
-  templates/
+  userconfig.py    # ~/.config/aibox/config.toml parsing
+  templates.py     # Project templates: fetch, merge, stage
+  image/
     Dockerfile     # Default container image
+    entrypoint.sh  # UID/GID retune, gosu drop, template home seeding
 ```
+
+Note `image/` was called `templates/` before phase 10; it was renamed so it
+wouldn't sit next to the unrelated `templates.py`.
 
 ## Key Implementation Details
 
@@ -77,7 +83,7 @@ aibox-var-tmp-{project-id} → /var/tmp
 aibox-opt-{project-id}     → /opt
 ```
 
-Current project bind-mounted to `/workspace`. If `.git` exists on host, mask it with `--mount type=tmpfs,destination=/workspace/.git`.
+Current project bind-mounted to `/workspace`. If `.git` exists on the host, extra mounts are layered on top per the `--git` mode — see `docker._git_mount_args` and `plans/phase-9-git-access.md`.
 
 ### Docker Image Contents
 Base: `python:3.12-slim`
@@ -85,6 +91,7 @@ Base: `python:3.12-slim`
 - User-local tool paths: `~/.npm-global/bin`, `~/.local/bin`, `/opt/bin` in PATH
 - Tools: bash, curl, ca-certificates, build-essential, vim/nano, jq, ripgrep, fd-find, unzip, xz-utils, git, gosu
 - Node.js from the official nodejs.org tarball (pinned via the `NODE_VERSION` build arg, checksum-verified against `SHASUMS256.txt`), **not** Debian's `nodejs` package. Debian ships v20, but Claude Code requires `node >=22`. Bump `NODE_VERSION` in the Dockerfile to move Node versions.
+- Chromium's system libraries, via `npx playwright@$PLAYWRIGHT_VERSION install-deps chromium` at build time. Browser *binaries* are not baked in — the agent runs `npx playwright install chromium` itself, which needs no root and caches to `~/.cache/ms-playwright` on the home volume. The libs must be in the image because installing them needs apt/root and the container runs as `dev` with no sudo. Let Playwright resolve the package names; Debian 13's `t64` renames would rot a hardcoded apt list.
 - `/etc/profile.d/aibox-path.sh` re-adds the user-local tool paths. `ENV PATH` alone is insufficient because `/etc/profile` assigns `PATH` outright, so login shells (`bash -l`, `su -`) would otherwise lose globally-installed tools like `claude`.
 - **git included, `gh` excluded.** git lets agents clone public repos / install plugins. Without `gh` or mounted credentials the agent still can't push to or authenticate against remotes. The host `.git` is masked at runtime so history stays protected.
 
@@ -95,10 +102,11 @@ ports = ["3000:3000"]
 env = ["NODE_ENV=development"]
 env_files = [".env"]
 shell = "/bin/bash"
+git = "commit"   # "commit" (default) | "readonly" | "masked"
 docker_args = ["--add-host=host.docker.internal:host-gateway"]
 ```
 
-CLI flags append to or override config values; `--shell` overrides config `shell`.
+CLI flags append to or override config values; `--shell` and `--git` override config `shell` and `git`.
 
 ### Container Runtime
 - User: `dev` (or `--user` override)
@@ -114,7 +122,7 @@ CLI flags append to or override config values; `--shell` overrides config `shell
 3. **Readable over clever**: Prefer straightforward, maintainable Python.
 4. **Cross-platform**: macOS, Linux, and Windows are all supported. The container is always Linux regardless of host. UID handling on Linux uses an entrypoint script that retunes the `dev` user via gosu.
 5. **Credential safety**: Strict enforcement — no host home directory mounting.
-6. **Git safety**: Host `.git` must be masked (tmpfs) so the agent can't read or modify real history. `git` itself is installed (for clones/plugins), but safety comes from the masked `.git` + absence of credentials/`gh`, not from withholding the binary.
+6. **Git safety**: The boundary is the *host*, not the history. The agent commits locally by default; safety comes from the absence of credentials/`gh` (so it can't push) plus frozen `.git/hooks` and `.git/config` (so it can't make host git run its code). Never relax those two, in any mode.
 7. **Container disposability**: Image/Dockerfile define system environment; container filesystem is ephemeral.
 
 ## Development Commands (to be established)
