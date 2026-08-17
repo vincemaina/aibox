@@ -25,6 +25,8 @@ import hashlib
 import re
 import shutil
 import subprocess
+import sys
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from importlib.resources import files
@@ -43,6 +45,15 @@ BRIEFING_FILE = "agent-briefing.md"
 
 #: Linked from onboarding when a template's layout looks wrong.
 DOCS_TEMPLATES_URL = "https://vincemaina.github.io/aibox/documentation.html#templates"
+
+#: How long a cloned template is reused before aibox re-fetches it. Without a
+#: ceiling, editing your template repo would never reach new boxes. A day keeps
+#: `aibox run` off the network almost always while staying roughly current.
+CACHE_TTL_SECONDS = 24 * 60 * 60
+
+
+def _warn(message: str) -> None:
+    print(f"aibox: {message}", file=sys.stderr)
 
 #: Never copied out of a template, whatever it contains.
 _EXCLUDED = {".git"}
@@ -88,7 +99,12 @@ def refs_for(user: UserConfig, project: ProjectConfig) -> list[str]:
 
 
 def _is_remote(ref: str) -> bool:
-    return bool(re.match(r"^(https?://|git://|ssh://|git@)", ref))
+    """Whether a ref is something to clone rather than read in place.
+
+    ``file://`` counts: it's a git URL pointing at a repository, not a directory
+    of template files, so it has to go through clone like any other remote.
+    """
+    return bool(re.match(r"^(https?://|git://|ssh://|file://|git@)", ref))
 
 
 def _cache_path(ref: str) -> Path:
@@ -97,12 +113,59 @@ def _cache_path(ref: str) -> Path:
     return cache_dir() / "templates" / f"{name}-{digest}"
 
 
-def resolve(ref: str, refresh: bool = False) -> Path:
+def _fetched_marker(dest: Path) -> Path:
+    return dest.parent / f"{dest.name}.fetched"
+
+
+def _age(dest: Path) -> float:
+    """Seconds since this template was last fetched. ``inf`` if never/unknown."""
+    marker = _fetched_marker(dest)
+    try:
+        return time.time() - float(marker.read_text())
+    except (OSError, ValueError):
+        return float("inf")
+
+
+def _clone(ref: str, dest: Path) -> subprocess.CompletedProcess:
+    """Clone into a staging dir and swap on success.
+
+    Never delete the cached copy before the replacement exists — a failed fetch
+    must leave the previous template intact for the offline fallback to use.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = dest.parent / f"{dest.name}.incoming"
+    shutil.rmtree(staging, ignore_errors=True)
+
+    result = subprocess.run(
+        ["git", "clone", "--depth", "1", "--quiet", ref, str(staging)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        shutil.rmtree(staging, ignore_errors=True)
+        return result
+
+    shutil.rmtree(dest, ignore_errors=True)
+    staging.replace(dest)
+    _fetched_marker(dest).write_text(str(time.time()))
+    return result
+
+
+def resolve(ref: str, refresh: bool = False, ttl: float = CACHE_TTL_SECONDS) -> Path:
     """Turn a template ref into a local directory.
 
-    Local paths are used in place. Remote refs are shallow-cloned into the cache
-    and reused until ``refresh``. Cloning does not run hooks from the remote, so
-    the fetch itself executes nothing.
+    Local paths are read in place, so they're always current. Remote refs are
+    shallow-cloned into the cache and re-cloned when the copy is older than
+    ``ttl`` — otherwise editing your template repo would never reach new boxes.
+    ``refresh`` forces it regardless of age.
+
+    Re-cloning is a delete-and-clone rather than a pull: templates are tiny, and
+    it can't end up in a half-merged state.
+
+    A failed fetch with a usable cached copy is **not** an error. Being offline
+    shouldn't stop a box from starting, so it warns and uses what it has.
+    Cloning runs no hooks from the remote, so the fetch itself executes nothing.
     """
     if not _is_remote(ref):
         path = Path(ref).expanduser()
@@ -111,24 +174,22 @@ def resolve(ref: str, refresh: bool = False) -> Path:
         return path.resolve()
 
     dest = _cache_path(ref)
-    if dest.is_dir() and refresh:
-        shutil.rmtree(dest)
-    if dest.is_dir():
+    cached = dest.is_dir()
+
+    if cached and not refresh and _age(dest) < ttl:
         return dest
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        ["git", "clone", "--depth", "1", "--quiet", ref, str(dest)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        shutil.rmtree(dest, ignore_errors=True)
-        raise TemplateError(
-            f"Failed to clone template '{ref}': {(result.stderr or '').strip()}"
-        )
-    return dest
+    result = _clone(ref, dest)
+    if result.returncode == 0:
+        return dest
+
+    # git prints several lines of advice; the first one is the actual cause.
+    error = next((line for line in (result.stderr or "").splitlines() if line.strip()), "")
+    if cached and dest.is_dir():
+        _warn(f"Couldn't update template '{ref}' — {error.strip()}")
+        _warn("Using the cached copy.")
+        return dest
+    raise TemplateError(f"Failed to clone template '{ref}': {error.strip()}")
 
 
 def _walk(root: Path):
@@ -270,9 +331,9 @@ def stage_home_seed(
     return staged
 
 
-def load_all(refs: list[str], refresh: bool = False) -> list[Path]:
+def load_all(refs: list[str], refresh: bool = False, **kwargs) -> list[Path]:
     try:
-        return [resolve(ref, refresh=refresh) for ref in refs]
+        return [resolve(ref, refresh=refresh, **kwargs) for ref in refs]
     except TemplateError:
         raise
     except OSError as exc:

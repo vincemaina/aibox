@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Raw passthrough to docker run. Use --docker-arg=VALUE form when VALUE starts with --.",
     )
     run.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Re-fetch remote templates now instead of waiting for the cache to expire.",
+    )
+    run.add_argument(
         "--user",
         default=_default_user(),
         help="Override the container user. Default: 'dev' on macOS/Windows, "
@@ -143,7 +148,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     spec = config.merge(cfg, args, ident)
 
     refs = templates.refs_for(userconfig.load(), cfg)
-    resolved = templates.load_all(refs)
+    resolved = templates.load_all(refs, refresh=args.refresh)
 
     if onboarding.offer_import(resolved, ident.cwd, ident.project_id):
         results = _merge_templates(resolved, ident.cwd, policy="ask", dry_run=False)

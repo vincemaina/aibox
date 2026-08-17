@@ -119,6 +119,7 @@ aibox rebuild-image    # rebuild aibox-default:latest
 | `--env-file PATH`                   | Pass a `--env-file` to Docker. Repeatable.               |
 | `--shell PATH`                      | Override the default `/bin/bash`.                        |
 | `--git {commit,readonly,masked}`    | How much of the host `.git` the agent gets. See [Git access](#git-access). |
+| `--refresh`                         | Re-fetch remote templates now instead of waiting for the 24h cache to expire. |
 | `--docker-arg=ARG`                  | Raw passthrough to `docker run`. See note below.         |
 | `--user USER`                       | Run as a different user inside the container.            |
 
@@ -229,6 +230,23 @@ templates = [
 ```
 
 They're applied in order, so you can layer a general starter with a language-specific one. A project's `.aibox.toml` can override the list, and `templates = []` opts a project out entirely.
+
+### Updating a template
+
+Remote templates are cloned into `~/.cache/aibox/templates/` and reused, so starting a box doesn't hit the network every time. The cache expires after **24 hours**, so pushing a change to your template repo reaches new boxes within a day on its own.
+
+To pick it up immediately:
+
+```bash
+aibox run --refresh     # re-fetch, then start the box
+aibox init --refresh    # re-fetch, then merge into this project
+```
+
+`aibox setup` always fetches fresh.
+
+**Local path templates are never cached** — they're read in place, so edits apply on the next run. That makes a local path the easiest way to iterate on a template before pushing it.
+
+If a fetch fails and you have a cached copy, that's not an error: aibox warns, uses the cache, and carries on, so being offline never stops a box from starting. Re-cloning goes via a staging directory and swaps on success, so a failed update can't leave a half-written template behind.
 
 ### Template layout
 

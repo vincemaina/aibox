@@ -170,6 +170,7 @@
           <tr><td><code>--env-file</code></td><td><code>PATH</code></td><td>Pass an env file to Docker. Repeatable.</td></tr>
           <tr><td><code>--shell</code></td><td><code>PATH</code></td><td>Command to run instead of <code>/bin/bash</code>.</td></tr>
           <tr><td><code>--git</code></td><td><code>masked</code> · <code>readonly</code> · <code>commit</code></td><td>How much of the host <code>.git</code> the agent gets. Default <code>commit</code>. See <a href="#git">Git access</a>.</td></tr>
+          <tr><td><code>--refresh</code></td><td>—</td><td>Re-fetch remote templates now rather than waiting for the 24-hour cache to expire.</td></tr>
           <tr><td><code>--docker-arg</code></td><td><code>ARG</code></td><td>Raw passthrough to <code>docker run</code>. Repeatable.</td></tr>
           <tr><td><code>--user</code></td><td><code>USER</code></td><td>Container user. Defaults to <code>dev</code> on macOS/Windows; on Linux the entrypoint handles the UID match.</td></tr>
         </tbody>
@@ -365,6 +366,15 @@ templates = [
         <li><strong>Hard rules</strong> — never attempt to escape the sandbox, never modify files outside <code>/workspace</code>, never work on another repository, never push to <code>main</code> or <code>master</code>, and never try to defeat a protection. A blocked action is a boundary to report, not an obstacle to work around.</li>
       </ul>
       <div class="note"><p><strong>Overriding it:</strong> a template that provides its own <code>home/.claude/CLAUDE.md</code> replaces the briefing entirely. If you do that, carry the guidance across.</p></div>
+
+      <h3>Updating a template</h3>
+      <p>Remote templates are cloned into <code>~/.cache/aibox/templates/</code> and reused, so <code>aibox run</code> isn't hitting the network every time you start a box. The cache expires after <strong>24 hours</strong>, after which the next command re-fetches — so pushing a change to your template repo reaches new boxes within a day without you doing anything.</p>
+      <p>To pick up a change immediately:</p>
+<pre><code><span class="p">$</span> aibox run --refresh     <span class="c"># re-fetch, then start the box</span>
+<span class="p">$</span> aibox init --refresh    <span class="c"># re-fetch, then merge into this project</span></code></pre>
+      <p><code>aibox setup</code> always fetches fresh, since you're actively configuring templates and a stale report would be misleading.</p>
+      <p><strong>Local path templates are never cached.</strong> They're read in place, so edits apply on the very next run with no refresh at all — which makes a local path the easiest way to iterate on a template before pushing it.</p>
+      <div class="note"><p><strong>Offline:</strong> a failed fetch is not an error when there's a cached copy. aibox warns, uses what it has, and starts the box. It re-clones into a staging directory and swaps on success, so a failed update can never leave you with a half-written template.</p></div>
 
       <h3>Conflicts</h3>
       <p>New files are created. A file that already exists and <em>matches</em> is reported unchanged and left alone. A file that exists and <em>differs</em> is a conflict:</p>

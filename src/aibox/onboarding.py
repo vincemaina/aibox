@@ -68,7 +68,9 @@ def _try_template(ref: str) -> str | None:
     """Resolve and check one ref. Returns it if the user wants to keep it."""
     print("\n  Fetching…")
     try:
-        resolved = templates.resolve(ref)
+        # Always fetch fresh during setup: the user is actively configuring this,
+        # and reporting the structure of a stale clone would be misleading.
+        resolved = templates.resolve(ref, refresh=True)
     except TemplateError as exc:
         print(f"  {exc}")
         return None

@@ -1,3 +1,6 @@
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from aibox import templates
@@ -6,10 +9,36 @@ from aibox.templates import Action, TemplateError
 from aibox.userconfig import UserConfig
 
 
+REMOTE = "https://example.com/t.git"
+
+
 @pytest.fixture
 def cache(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     return tmp_path / "cache" / "aibox"
+
+
+def fake_clone(monkeypatch):
+    """Stand in for `git clone`, populating the staging dir it's given."""
+    calls = {"n": 0}
+
+    def run(args, *a, **kw):
+        calls["n"] += 1
+        (Path(args[-1]) / "workspace").mkdir(parents=True)
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(templates.subprocess, "run", run)
+    return calls
+
+
+def fail_clone(monkeypatch, stderr="could not resolve host"):
+    monkeypatch.setattr(
+        templates.subprocess,
+        "run",
+        lambda args, *a, **kw: subprocess.CompletedProcess(
+            args=args, returncode=128, stdout="", stderr=stderr
+        ),
+    )
 
 
 def make_template(root, workspace=None, home=None) -> "object":
@@ -65,6 +94,61 @@ class TestResolve:
             templates.resolve("https://example.com/t.git")
         # A half-cloned directory must not be left behind to be reused as valid.
         assert list((cache / "templates").glob("*")) == []
+
+    def test_fresh_cache_is_not_refetched(self, cache, monkeypatch):
+        calls = fake_clone(monkeypatch)
+        templates.resolve(REMOTE)
+        templates.resolve(REMOTE)
+        assert calls["n"] == 1
+
+    def test_stale_cache_is_refetched(self, cache, monkeypatch):
+        # Without a TTL, editing your template repo would never reach new boxes.
+        calls = fake_clone(monkeypatch)
+        templates.resolve(REMOTE)
+        templates.resolve(REMOTE, ttl=0)
+        assert calls["n"] == 2
+
+    def test_refresh_forces_a_refetch(self, cache, monkeypatch):
+        calls = fake_clone(monkeypatch)
+        templates.resolve(REMOTE)
+        templates.resolve(REMOTE, refresh=True)
+        assert calls["n"] == 2
+
+    def test_local_paths_are_always_current(self, tmp_path, monkeypatch):
+        # Read in place, never cached, so there is nothing to go stale.
+        monkeypatch.setattr(
+            templates.subprocess, "run", lambda *a, **kw: pytest.fail("cloned a local path")
+        )
+        local = tmp_path / "t"
+        local.mkdir()
+        assert templates.resolve(str(local), ttl=0) == local.resolve()
+
+    def test_failed_refetch_falls_back_to_cache(self, cache, monkeypatch, capsys):
+        # Being offline must not stop a box from starting.
+        fake_clone(monkeypatch)
+        first = templates.resolve(REMOTE)
+        (first / "workspace" / "marker").write_text("original")
+
+        fail_clone(monkeypatch)
+        again = templates.resolve(REMOTE, refresh=True)
+        assert again == first
+        assert (again / "workspace" / "marker").read_text() == "original"
+        assert "Using the cached copy" in capsys.readouterr().err
+
+    def test_failed_refetch_leaves_cache_intact(self, cache, monkeypatch):
+        fake_clone(monkeypatch)
+        cached = templates.resolve(REMOTE)
+        (cached / "workspace" / "keep").write_text("x")
+
+        fail_clone(monkeypatch)
+        templates.resolve(REMOTE, refresh=True)
+        assert (cached / "workspace" / "keep").is_file()
+        assert not list(cached.parent.glob("*.incoming"))
+
+    def test_failed_first_clone_still_raises(self, cache, monkeypatch):
+        fail_clone(monkeypatch)
+        with pytest.raises(TemplateError, match="Failed to clone"):
+            templates.resolve(REMOTE)
 
     def test_cached_clone_is_reused(self, cache, monkeypatch):
         calls = {"n": 0}

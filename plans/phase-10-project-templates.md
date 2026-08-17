@@ -54,9 +54,21 @@ templates = [
 
 A list, applied in order, so a general starter can be layered with a language-specific one. A project's `.aibox.toml` may override with its own `templates` key.
 
-### Fetching
+### Fetching and cache freshness
 
-Remote templates are `git clone --depth 1` into a cache at `~/.cache/aibox/templates/<hash-of-url>`, refreshed with `aibox init --refresh`. Cloning does not execute hooks from the remote, so the fetch itself is safe. The template's own `.git` is never copied into the target.
+Remote templates are `git clone --depth 1` into a cache at `~/.cache/aibox/templates/<hash-of-url>`. Cloning does not execute hooks from the remote, so the fetch itself is safe. The template's own `.git` is never copied into the target.
+
+The first implementation cached **forever**, refreshed only by `aibox init --refresh`. That was a genuine defect rather than a missing nicety: `aibox run` never passed `refresh`, so editing your template repo could never reach a new box, and the documented promise that `home/` "refreshes on every run" was true only relative to the cache — not to the repo that is actually the source of truth.
+
+Now:
+
+- **A 24-hour TTL.** Past that, the next command re-fetches, so a pushed change propagates on its own. Under it, `aibox run` stays off the network.
+- **`--refresh` on `run` as well as `init`**, and `aibox setup` always fetches fresh, since reporting the structure of a stale clone during setup would be misleading.
+- **Local paths are never cached.** Read in place, so they're always current — which makes a local path the natural way to iterate on a template before pushing.
+- **Fail-soft.** A failed fetch with a usable cached copy warns and proceeds. Being offline must not stop a box from starting.
+- **Staged swap.** Re-cloning goes to `<name>.incoming` and is renamed over the cache only on success. Deleting first would destroy the copy the offline fallback depends on — the first cut of this had exactly that bug.
+
+`file://` counts as remote. It's a git URL pointing at a repository, not a directory of template files, so it has to go through clone.
 
 ### Merge semantics for `workspace/`
 
